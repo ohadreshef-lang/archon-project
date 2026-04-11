@@ -130,8 +130,8 @@ export class CombatScene extends Phaser.Scene {
     const circle = this.add.arc(x, y, 24, 0, 360, false, fillColor);
     circle.setStrokeStyle(2, strokeColor);
 
-    const label = this.add.text(x, y, PIECE_LABEL[piece.type] ?? "?", {
-      fontSize: "13px", fontFamily: "Inter, sans-serif", fontStyle: "bold", color: "#fff",
+    const label = this.add.text(x, y + 1, PIECE_LABEL[piece.type] ?? "?", {
+      fontSize: "22px", fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
     }).setOrigin(0.5);
 
     // HP bar
@@ -259,9 +259,9 @@ export class CombatScene extends Phaser.Scene {
 }
 
 const PIECE_LABEL: Record<string, string> = {
-  wizard:"Wiz", sorceress:"Sor", unicorn:"Uni", basilisk:"Bas",
-  archer:"Arc", manticore:"Man", valkyrie:"Val", banshee:"Ban",
-  golem:"Gol", troll:"Trl", djinni:"Djn", dragon:"Drg",
-  phoenix:"Phx", shapeshifter:"Shp", knight:"Knt", goblin:"Gob",
-  elemental_fire:"EFi", elemental_earth:"EEr", elemental_water:"EWt", elemental_air:"EAr",
+  wizard:"🧙", sorceress:"🔮", unicorn:"🦄", basilisk:"🐍",
+  archer:"🏹", manticore:"🦁", valkyrie:"⚔️", banshee:"👻",
+  golem:"🗿", troll:"👹", djinni:"🌪️", dragon:"🐉",
+  phoenix:"🦅", shapeshifter:"🌀", knight:"♞", goblin:"👺",
+  elemental_fire:"🔥", elemental_earth:"🪨", elemental_water:"💧", elemental_air:"💨",
 };

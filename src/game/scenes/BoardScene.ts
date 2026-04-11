@@ -164,11 +164,9 @@ export class BoardScene extends Phaser.Scene {
     const bg = this.add.arc(0, 0, radius, 0, 360, false, bgColor);
     bg.setStrokeStyle(2, piece.side === "light" ? 0x818cf8 : 0xfb7185, 1);
 
-    const label = this.add.text(0, 0, PIECE_LABEL[piece.type] ?? "?", {
-      fontSize: "14px",
-      fontFamily: "Inter, sans-serif",
-      fontStyle: "bold",
-      color: "#ffffff",
+    const label = this.add.text(0, 1, PIECE_LABEL[piece.type] ?? "?", {
+      fontSize: "20px",
+      fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
     }).setOrigin(0.5);
 
     const container = this.add.container(cx, cy, [bg, label]);
@@ -307,24 +305,24 @@ export class BoardScene extends Phaser.Scene {
 }
 
 const PIECE_LABEL: Record<string, string> = {
-  wizard:         "Wiz",
-  sorceress:      "Sor",
-  unicorn:        "Uni",
-  basilisk:       "Bas",
-  archer:         "Arc",
-  manticore:      "Man",
-  valkyrie:       "Val",
-  banshee:        "Ban",
-  golem:          "Gol",
-  troll:          "Trl",
-  djinni:         "Djn",
-  dragon:         "Drg",
-  phoenix:        "Phx",
-  shapeshifter:   "Shp",
-  knight:         "Knt",
-  goblin:         "Gob",
-  elemental_fire: "EFi",
-  elemental_earth:"EEr",
-  elemental_water:"EWt",
-  elemental_air:  "EAr",
+  wizard:         "🧙",
+  sorceress:      "🔮",
+  unicorn:        "🦄",
+  basilisk:       "🐍",
+  archer:         "🏹",
+  manticore:      "🦁",
+  valkyrie:       "⚔️",
+  banshee:        "👻",
+  golem:          "🗿",
+  troll:          "👹",
+  djinni:         "🌪️",
+  dragon:         "🐉",
+  phoenix:        "🦅",
+  shapeshifter:   "🌀",
+  knight:         "♞",
+  goblin:         "👺",
+  elemental_fire: "🔥",
+  elemental_earth:"🪨",
+  elemental_water:"💧",
+  elemental_air:  "💨",
 };
