@@ -187,15 +187,16 @@ export class BoardScene extends Phaser.Scene {
 
     const state = this.gameState;
     if (!state || state.phase !== "strategy") return;
-    // Only allow interaction on this player's turn
-    if (state.currentTurn !== this.playerSide) return;
     const piece = state.board[row][col];
 
     if (this.selectedPieceId) {
       const key = `${col},${row}`;
       if (this.validMoves.has(key) || this.attackMoves.has(key)) {
-        const [fromCol, fromRow] = this.selectedPieceId.split(":").map(Number) as [number, number];
-        this.onMoveFn?.([fromCol, fromRow], [col, row]);
+        // Only execute the move on your turn — handleMove guards the rest
+        if (state.currentTurn === this.playerSide) {
+          const [fromCol, fromRow] = this.selectedPieceId.split(":").map(Number) as [number, number];
+          this.onMoveFn?.([fromCol, fromRow], [col, row]);
+        }
       } else if (piece && piece.side === this.playerSide && this.selectedPieceId !== `${piece.col}:${piece.row}`) {
         // Re-select a different friendly piece
         this.clearSelection();
@@ -204,6 +205,7 @@ export class BoardScene extends Phaser.Scene {
       }
       this.clearSelection();
     } else if (piece && piece.side === this.playerSide) {
+      // Allow selecting own pieces at any time so players can plan their move
       this.selectPiece(piece);
     }
   }

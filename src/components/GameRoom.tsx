@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import usePartySocket from "partysocket/react";
 import GameCanvas from "./GameCanvas";
 import type { BoardPiece, GameState, NetworkMessage, Side } from "@/lib/types";
@@ -29,6 +29,9 @@ interface Props {
 
 export default function GameRoom({ roomId, playerSide }: Props) {
   const [gameState, setGameState] = useState<GameState>(createInitialState);
+  // Keep a ref so callbacks always read latest state without stale closures
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
 
   const socket = usePartySocket({
     host: PARTYKIT_HOST,
@@ -41,34 +44,33 @@ export default function GameRoom({ roomId, playerSide }: Props) {
     },
   });
 
+  // Compute next state outside the updater so socket.send is never
+  // called as a side-effect inside React's pure updater function.
   const handleMove = useCallback((from: [number, number], to: [number, number]) => {
-    setGameState((prev) => {
-      if (prev.currentTurn !== playerSide) return prev;
-      const next = applyMove(prev, from, to);
-      socket.send(JSON.stringify({ type: "MOVE", payload: next }));
-      return next;
-    });
+    const prev = gameStateRef.current;
+    if (prev.currentTurn !== playerSide || prev.phase !== "strategy") return;
+    const next = applyMove(prev, from, to);
+    setGameState(next);
+    socket.send(JSON.stringify({ type: "MOVE", payload: next }));
   }, [playerSide, socket]);
 
   const handleCombatResult = useCallback((attackerHp: number, defenderHp: number) => {
-    setGameState((prev) => {
-      if (prev.phase !== "combat" || !prev.combat) return prev;
-      // Only the attacker's client broadcasts the result to avoid conflicts
-      const next = applyCombatResult(prev, attackerHp, defenderHp);
-      if (playerSide === prev.combat.attackerSide) {
-        socket.send(JSON.stringify({ type: "MOVE", payload: next }));
-      }
-      return next;
-    });
+    const prev = gameStateRef.current;
+    if (prev.phase !== "combat" || !prev.combat) return;
+    const next = applyCombatResult(prev, attackerHp, defenderHp);
+    setGameState(next);
+    if (playerSide === prev.combat.attackerSide) {
+      socket.send(JSON.stringify({ type: "MOVE", payload: next }));
+    }
   }, [playerSide, socket]);
 
   const isMyTurn = gameState.currentTurn === playerSide && gameState.phase === "strategy";
   const luminanceLabel = ["●●●●●●", "◐●●●●●", "◐◐●●●●", "◐◐◐●●●", "◐◐◐◐●●", "◐◐◐◐◐●"][gameState.luminanceStep] ?? "";
 
   return (
-    <div className="flex flex-col items-center gap-5">
+    <div className="flex flex-col items-center gap-5 w-full max-w-[576px] px-2">
       {/* HUD */}
-      <div className="flex items-center gap-4 w-full max-w-[576px]">
+      <div className="flex items-center gap-4 w-full">
         <div className="flex-1 bg-gray-900/60 backdrop-blur border border-gray-700/50 rounded-xl px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={`w-2.5 h-2.5 rounded-full ${gameState.currentTurn === "light" ? "bg-indigo-400 shadow-[0_0_6px_#818cf8]" : "bg-rose-500 shadow-[0_0_6px_#fb7185]"}`} />

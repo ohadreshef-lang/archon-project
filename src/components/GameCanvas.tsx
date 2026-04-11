@@ -46,6 +46,10 @@ export default function GameCanvas({ gameState, playerSide, onMove, onCombatResu
         scene: [boardScene, CombatScene],
         pixelArt: false,
         antialias: true,
+        scale: {
+          mode: PhaserModule.Scale.FIT,
+          autoCenter: PhaserModule.Scale.CENTER_BOTH,
+        },
       });
 
       gameRef.current = game;
@@ -99,8 +103,8 @@ export default function GameCanvas({ gameState, playerSide, onMove, onCombatResu
   return (
     <div
       ref={containerRef}
-      className="rounded-xl overflow-hidden ring-2 ring-indigo-500/40 shadow-[0_0_40px_rgba(99,102,241,0.25)]"
-      style={{ width: 9 * 64, height: 9 * 64 }}
+      className="rounded-xl overflow-hidden ring-2 ring-indigo-500/40 shadow-[0_0_40px_rgba(99,102,241,0.25)] w-full"
+      style={{ maxWidth: 9 * 64, aspectRatio: "1 / 1" }}
     />
   );
 }
