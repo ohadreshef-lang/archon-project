@@ -124,14 +124,24 @@ export default function GameRoom({ roomId, playerSide }: Props) {
         onCombatResult={handleCombatResult}
       />
 
-      {/* Status */}
-      <p className="text-xs text-gray-600 font-medium">
-        {gameState.phase === "combat"
-          ? "Battle in progress — use arrow keys + space to fight"
-          : isMyTurn
-          ? "Your turn — click a piece to move, green = move, red = attack"
-          : "Waiting for opponent…"}
-      </p>
+      {/* Status + help link */}
+      <div className="flex items-center justify-between w-full">
+        <p className="text-xs text-gray-600 font-medium">
+          {gameState.phase === "combat"
+            ? "Battle in progress — use arrow keys + space to fight"
+            : isMyTurn
+            ? "Your turn — click a piece to move, green = move, red = attack"
+            : "Waiting for opponent…"}
+        </p>
+        <a
+          href="/how-to-play"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-indigo-400/60 hover:text-indigo-400 transition-colors whitespace-nowrap"
+        >
+          How to play →
+        </a>
+      </div>
     </div>
   );
 }
