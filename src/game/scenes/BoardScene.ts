@@ -13,13 +13,15 @@ const ATTACK_COLOR = 0xef4444; // red (enemy valid move)
 const LIGHT_PIECE_BG = 0x3730a3; // indigo-700
 const DARK_PIECE_BG  = 0x9f1239; // rose-800
 
+// Dark checkerboard squares subtly shift from very dark → medium slate
+// as the luminance cycle progresses — no color hues, just brightness.
 const OSCILLATING_COLORS = [
-  0x111827, // step 0 — near black
-  0x1e1b4b, // step 1 — deep indigo
-  0x4c1d95, // step 2 — purple
-  0x064e3b, // step 3 — dark green
-  0x0c4a6e, // step 4 — dark cyan
-  0xe5e7eb, // step 5 — near white
+  0x0d1117, // step 0 — almost black
+  0x111827, // step 1 — gray-900
+  0x1a2235, // step 2 — dark slate
+  0x1f2937, // step 3 — gray-800 (DARK_TILE baseline)
+  0x273446, // step 4 — slate-700
+  0x334155, // step 5 — slate-600, slightly lighter
 ];
 
 interface PieceContainer {
