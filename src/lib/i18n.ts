@@ -1,9 +1,11 @@
-export type Lang = "en" | "es" | "he";
+export type Lang = "en" | "es" | "he" | "fr" | "de";
 
-export const LANGUAGES: { code: Lang; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "es", label: "Español" },
-  { code: "he", label: "עברית" },
+export const LANGUAGES: { code: Lang; flag: string; label: string }[] = [
+  { code: "en", flag: "🇬🇧", label: "English" },
+  { code: "es", flag: "🇪🇸", label: "Español" },
+  { code: "he", flag: "🇮🇱", label: "עברית" },
+  { code: "fr", flag: "🇫🇷", label: "Français" },
+  { code: "de", flag: "🇩🇪", label: "Deutsch" },
 ];
 
 export interface PieceTr {
@@ -322,4 +324,172 @@ const he: Translation = {
   ],
 };
 
-export const TRANSLATIONS: Record<Lang, Translation> = { en, es, he };
+// ─────────────────────────────────────────────────────────────────────────────
+// FRENCH
+// ─────────────────────────────────────────────────────────────────────────────
+const fr: Translation = {
+  dir: "ltr",
+  back: "← Retour",
+  playNow: "Jouer maintenant",
+  pageTitle: "Comment jouer",
+  pageSubtitle: "Un jeu de stratégie et de combat en temps réel pour deux joueurs.",
+
+  s_objective:   "Objectif",
+  s_board:       "Le plateau",
+  s_controls:    "Contrôles",
+  s_combat:      "Combat",
+  s_lightPieces: "Pièces du côté Lumière",
+  s_darkPieces:  "Pièces du côté Ombre",
+  s_spells:      "Sorts",
+  s_movement:    "Types de déplacement",
+
+  obj_intro: "Gagnez de l'une de ces trois façons :",
+  obj_ways: [
+    "Contrôlez les 5 Points de Pouvoir simultanément — les cases ambrées qui brillent.",
+    "Éliminez toutes les pièces adverses du plateau.",
+    "Emprisonnez la dernière pièce ennemie avec le sort Emprisonner.",
+  ],
+
+  squares: [
+    { label: "Cases claires",     desc: "Permanentemente claires. Augmentent les PV du côté Lumière en combat." },
+    { label: "Cases sombres",     desc: "Permanentemente sombres. Augmentent les PV du côté Ombre en combat." },
+    { label: "Cases oscillantes", desc: "Alternent entre 6 nuances — l'avantage bascule entre les camps." },
+  ],
+  board_note: "Le cycle de luminance avance d'un cran à chaque tour. Les cases qui vous favorisent maintenant pourraient favoriser votre adversaire bientôt — anticipez.",
+
+  controls: [
+    { label: "Plateau — Sélectionner", desc: "Cliquez sur l'une de vos pièces. Les mouvements valides s'affichent en vert, les attaques en rouge." },
+    { label: "Plateau — Déplacer / Attaquer", desc: "Cliquez sur une case surlignée pour bouger. Cliquez sur une case rouge pour attaquer — cela lance le combat." },
+    { label: "Combat — Se déplacer", desc: "Touches directionnelles pour déplacer votre unité dans l'arène." },
+    { label: "Combat — Tirer", desc: "Barre espace pour tirer. Il y a un temps de recharge entre chaque tir." },
+  ],
+
+  combat_body: "Quand une pièce se déplace sur la case d'un ennemi, les deux joueurs entrent dans une arène en temps réel. Chacun contrôle sa propre unité — déplacez-vous et tirez pour réduire l'adversaire à 0 PV. Le vainqueur retourne sur le plateau ; le perdant est éliminé. Les dégâts persistent entre les combats — il n'y a pas de guérison automatique.",
+  combat_note: "La couleur de la case affecte les PV : combattre sur une case favorable vous donne jusqu'à +7 PV. Les Points de Pouvoir restaurent 1 PV par tour à toute unité qui s'y trouve.",
+
+  col_move: "Déplacement", col_range: "Portée", col_hp: "PV", col_notes: "Notes",
+
+  light: [
+    { name: "Magicien",       move: "Téléportation (partout)",  range: "Longue",       notes: "Lance les 7 sorts. Chaque sort réduit définitivement les PV maximum." },
+    { name: "Licorne",        move: "Sol (4)",                   range: "Moy–Longue",   notes: "Cadence de tir élevée. Meilleur attaquant terrestre côté Lumière." },
+    { name: "Archer",         move: "Sol (3)",                   range: "Moyenne",      notes: "Attaquant équilibré à portée moyenne." },
+    { name: "Valkyrie",       move: "Vol (3)",                   range: "Moyenne",      notes: "Le vol offre une excellente mobilité sur le plateau." },
+    { name: "Golem",          move: "Sol (2, lent)",             range: "Longue",       notes: "PV et dégâts énormes. Très lent." },
+    { name: "Djinn",          move: "Vol (4)",                   range: "Longue",       notes: "Tirs rapides. Puissant attaquant volant." },
+    { name: "Phénix",         move: "Vol (5)",                   range: "Courte–Moy",   notes: "Peut devenir une boule de feu invulnérable — mais immobile pendant ce temps." },
+    { name: "Chevalier ×7",   move: "Sol (3)",                   range: "Mêlée",        notes: "Rechargement rapide, très fragile. Inutile contre les unités à distance." },
+  ],
+  dark: [
+    { name: "Sorcière",       move: "Téléportation (partout)",  range: "Longue",       notes: "Miroir du Magicien. Lance les 7 sorts." },
+    { name: "Basilic",        move: "Sol (3)",                   range: "Moy–Longue",   notes: "L'attaquant Ombre le plus puissant, mais avec des PV très faibles. A besoin de cases sombres." },
+    { name: "Manticore",      move: "Sol (3)",                   range: "Moyenne",      notes: "Miroir de l'Archer." },
+    { name: "Banshee",        move: "Vol (3)",                   range: "Proche (zone)", notes: "Le cri touche une zone. Miroir de la Valkyrie." },
+    { name: "Troll",          move: "Sol (2, lent)",             range: "Longue",       notes: "Miroir du Golem." },
+    { name: "Dragon",         move: "Vol (4)",                   range: "Longue",       notes: "Dégâts et PV les plus élevés du jeu. Rechargement le plus lent — exploitez-le." },
+    { name: "Métamorphe",     move: "Vol (5)",                   range: "Variable",     notes: "Copie les capacités de l'adversaire en combat. Se soigne entièrement après chaque combat." },
+    { name: "Gobelin ×7",     move: "Sol (3)",                   range: "Mêlée",        notes: "Miroir du Chevalier." },
+  ],
+
+  spells_note: "Seuls le Magicien (Lumière) et la Sorcière (Ombre) peuvent lancer des sorts. Chaque sort ne peut être utilisé qu'une seule fois par partie. Chaque sort réduit définitivement les PV maximum du lanceur — utilisez-les avec sagesse.",
+  spells: [
+    { name: "Téléportation",    desc: "Déplacez instantanément l'une de vos pièces vers n'importe quelle case vide — ou sur un ennemi pour déclencher immédiatement le combat." },
+    { name: "Guérison",         desc: "Restaure entièrement les PV d'une unité. Ne peut pas cibler une unité sur un Point de Pouvoir." },
+    { name: "Altérer le temps", desc: "Inverse ou fait sauter le cycle de luminance. Extrêmement puissant pour renverser l'avantage sur tout le plateau." },
+    { name: "Échange",          desc: "Échange les positions de deux pièces quelconques — les vôtres, celles de l'ennemi, ou une de chaque." },
+    { name: "Invoquer un élémental", desc: "Invoque un élémental aléatoire (Feu, Terre, Eau, Air) pour livrer un seul combat en votre nom, puis disparaître." },
+    { name: "Résurrection",     desc: "Ressuscite une pièce détruite avec ses PV complets, placée à côté de votre lanceur de sorts." },
+    { name: "Emprisonner",      desc: "Immobilise une pièce ennemie sur place. Elle ne peut pas bouger jusqu'à ce que le cycle de luminance atteigne l'extrême de son camp." },
+  ],
+
+  movement: [
+    { label: "Sol",           desc: "Orthogonal uniquement (pas en diagonale). Bloqué par toute pièce sur le chemin." },
+    { label: "Vol",           desc: "Toutes directions, y compris en diagonale. Peut survoler les cases occupées." },
+    { label: "Téléportation", desc: "Magicien/Sorcière uniquement — se déplace instantanément sur n'importe quelle case." },
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GERMAN
+// ─────────────────────────────────────────────────────────────────────────────
+const de: Translation = {
+  dir: "ltr",
+  back: "← Zurück",
+  playNow: "Jetzt spielen",
+  pageTitle: "Spielanleitung",
+  pageSubtitle: "Ein Strategie- und Echtzeit-Kampfspiel für zwei Spieler.",
+
+  s_objective:   "Ziel",
+  s_board:       "Das Spielfeld",
+  s_controls:    "Steuerung",
+  s_combat:      "Kampf",
+  s_lightPieces: "Figuren der Lichtseite",
+  s_darkPieces:  "Figuren der Dunkelseite",
+  s_spells:      "Zauber",
+  s_movement:    "Bewegungsarten",
+
+  obj_intro: "Gewinne auf eine dieser drei Arten:",
+  obj_ways: [
+    "Kontrolliere alle 5 Kraftpunkte gleichzeitig — die leuchtenden bernsteinfarbenen Felder.",
+    "Eliminiere alle gegnerischen Figuren vom Spielfeld.",
+    "Sperre die letzte Figur des Gegners mit dem Einsperren-Zauber ein.",
+  ],
+
+  squares: [
+    { label: "Helle Felder",       desc: "Dauerhaft hell. Erhöhen die LP der Lichtseite im Kampf." },
+    { label: "Dunkle Felder",      desc: "Dauerhaft dunkel. Erhöhen die LP der Dunkelseite im Kampf." },
+    { label: "Wechselnde Felder",  desc: "Wechseln zwischen 6 Schattierungen — der Vorteil fließt zwischen den Seiten." },
+  ],
+  board_note: "Der Luminanz-Zyklus schreitet jeden Zug einen Schritt voran. Felder, die dir jetzt nützen, können deinem Gegner bald nützen — plane entsprechend.",
+
+  controls: [
+    { label: "Spielfeld — Auswählen",       desc: "Klicke auf eine deiner Figuren. Gültige Züge werden grün, gültige Angriffe rot hervorgehoben." },
+    { label: "Spielfeld — Ziehen / Angreifen", desc: "Klicke auf ein hervorgehobenes Feld zum Ziehen. Klicke auf ein rotes Feld zum Angreifen — das startet den Kampf." },
+    { label: "Kampf — Bewegen",             desc: "Pfeiltasten, um deine Einheit in der Arena zu bewegen." },
+    { label: "Kampf — Schießen",            desc: "Leertaste zum Schießen. Zwischen den Schüssen gibt es eine Abklingzeit." },
+  ],
+
+  combat_body: "Wenn eine Figur auf das Feld eines Gegners zieht, treten beide Spieler in eine Echtzeit-Arena. Jeder steuert seine eigene Einheit — bewege dich und schieße, um den Gegner auf 0 LP zu reduzieren. Der Gewinner kehrt auf das Spielfeld zurück; der Verlierer wird entfernt. Schaden bleibt zwischen Kämpfen erhalten — es gibt keine automatische Heilung.",
+  combat_note: "Die Feldfarbe beeinflusst die LP: Kämpfen auf einem günstigen Feld gibt bis zu +7 LP. Kraftpunkte stellen jeder Einheit darauf 1 LP pro Zug wieder her.",
+
+  col_move: "Bewegung", col_range: "Reichweite", col_hp: "LP", col_notes: "Hinweise",
+
+  light: [
+    { name: "Zauberer",      move: "Teleport (überall)",     range: "Weit",          notes: "Wirkt alle 7 Zauber. Jeder Zauber senkt dauerhaft die maximalen LP." },
+    { name: "Einhorn",       move: "Boden (4)",              range: "Mittel–Weit",   notes: "Hohe Feuerrate. Bester Bodenangreifer der Lichtseite." },
+    { name: "Bogenschütze",  move: "Boden (3)",              range: "Mittel",        notes: "Ausgewogener Mittelstreckenangreifer." },
+    { name: "Walküre",       move: "Flug (3)",               range: "Mittel",        notes: "Flug ermöglicht hohe Mobilität auf dem Spielfeld." },
+    { name: "Golem",         move: "Boden (2, langsam)",     range: "Weit",          notes: "Enorme LP und Schaden. Sehr langsam." },
+    { name: "Dschinn",       move: "Flug (4)",               range: "Weit",          notes: "Schnelle Schüsse. Starker fliegender Angreifer." },
+    { name: "Phönix",        move: "Flug (5)",               range: "Nah–Mittel",    notes: "Kann zu einem unverwundbaren Feuerball werden — ist dabei aber unbeweglich." },
+    { name: "Ritter ×7",     move: "Boden (3)",              range: "Nahkampf",      notes: "Schnelles Nachladen, sehr zerbrechlich. Nutzlos gegen Fernkampfeinheiten." },
+  ],
+  dark: [
+    { name: "Zauberin",      move: "Teleport (überall)",     range: "Weit",          notes: "Spiegel des Zauberers. Wirkt alle 7 Zauber." },
+    { name: "Basilisk",      move: "Boden (3)",              range: "Mittel–Weit",   notes: "Mächtigster Angreifer der Dunkelseite, aber kritisch niedrige LP. Braucht dunkle Felder." },
+    { name: "Mantikor",      move: "Boden (3)",              range: "Mittel",        notes: "Spiegel des Bogenschützen." },
+    { name: "Banshee",       move: "Flug (3)",               range: "Nah (Fläche)",  notes: "Schrei trifft eine Fläche. Spiegel der Walküre." },
+    { name: "Troll",         move: "Boden (2, langsam)",     range: "Weit",          notes: "Spiegel des Golems." },
+    { name: "Drache",        move: "Flug (4)",               range: "Weit",          notes: "Höchste LP und Schaden im Spiel. Langsamste Nachladezeit — nutze das aus." },
+    { name: "Gestaltwandler",move: "Flug (5)",               range: "Variabel",      notes: "Kopiert die Fähigkeiten des Gegners im Kampf. Heilt sich nach jedem Kampf vollständig." },
+    { name: "Kobold ×7",     move: "Boden (3)",              range: "Nahkampf",      notes: "Spiegel des Ritters." },
+  ],
+
+  spells_note: "Nur der Zauberer (Licht) und die Zauberin (Dunkel) können Zauber wirken. Jeder Zauber darf nur einmal pro Spiel eingesetzt werden. Jeder Zauber senkt dauerhaft die maximalen LP des Wirkers — setze sie klug ein.",
+  spells: [
+    { name: "Teleport",            desc: "Bewege eine deiner Figuren sofort auf ein beliebiges freies Feld — oder auf einen Gegner, um sofort Kampf auszulösen." },
+    { name: "Heilung",             desc: "Stellt die LP einer Einheit vollständig wieder her. Kann nicht auf eine Einheit auf einem Kraftpunkt angewendet werden." },
+    { name: "Zeit verschieben",    desc: "Kehrt den Luminanz-Zyklus um oder springt zum Gegenpol. Äußerst mächtig, um den Vorteil auf dem gesamten Spielfeld zu wenden." },
+    { name: "Tausch",              desc: "Tauscht die Positionen zweier beliebiger Figuren — eigene, gegnerische oder eine von jedem." },
+    { name: "Elementar beschwören",desc: "Beschwört ein zufälliges Elementar (Feuer, Erde, Wasser, Luft), das einen Kampf für dich führt und dann verschwindet." },
+    { name: "Wiederbeleben",       desc: "Erweckt eine zerstörte Figur mit vollen LP wieder zum Leben, platziert neben deinem Zauberwirker." },
+    { name: "Einsperren",          desc: "Friert eine gegnerische Figur an ihrem Platz ein. Sie kann sich nicht bewegen, bis der Luminanz-Zyklus den Extrempunkt der eingesperrten Seite erreicht." },
+  ],
+
+  movement: [
+    { label: "Boden",    desc: "Nur orthogonal (keine Diagonale). Wird durch jede Figur im Weg blockiert." },
+    { label: "Flug",     desc: "Alle Richtungen einschließlich Diagonale. Kann über besetzte Felder fliegen." },
+    { label: "Teleport", desc: "Nur Zauberer/Zauberin — bewegt sich sofort auf ein beliebiges Feld." },
+  ],
+};
+
+export const TRANSLATIONS: Record<Lang, Translation> = { en, es, he, fr, de };

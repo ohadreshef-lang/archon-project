@@ -34,17 +34,18 @@ export default function HowToPlay() {
 
           {/* Language switcher */}
           <div className="flex gap-1.5 mt-1 shrink-0">
-            {LANGUAGES.map(({ code, label }) => (
+            {LANGUAGES.map(({ code, flag, label }) => (
               <button
                 key={code}
                 onClick={() => setLang(code)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                title={label}
+                className={`w-9 h-9 rounded-lg text-xl flex items-center justify-center border transition-all ${
                   lang === code
-                    ? "bg-indigo-600 border-indigo-500 text-white"
-                    : "bg-gray-900/60 border-gray-700/50 text-gray-400 hover:text-white hover:border-gray-600"
+                    ? "bg-indigo-600/40 border-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                    : "bg-gray-900/60 border-gray-700/50 hover:border-gray-500 opacity-60 hover:opacity-100"
                 }`}
               >
-                {label}
+                {flag}
               </button>
             ))}
           </div>
