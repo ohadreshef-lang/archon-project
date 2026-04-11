@@ -1,31 +1,52 @@
 import * as Phaser from "phaser";
 import { BOARD_SIZE, TILE_SIZE, POWER_POINTS, LUMINANCE_COLORS, OSCILLATING_SQUARES } from "@/lib/constants";
-import type { GameState, BoardPiece } from "@/lib/types";
+import type { BoardPiece, CombatState, GameState } from "@/lib/types";
 
-const LIGHT_COLOR = 0xe8d5b0;
-const DARK_COLOR  = 0x4a3728;
-const POWER_COLOR = 0xff4444;
-const SELECT_COLOR = 0xffff00;
-const MOVE_COLOR   = 0x00ff88;
+// Modern color palette
+const LIGHT_TILE   = 0xd1d5db; // cool gray-300
+const DARK_TILE    = 0x1f2937; // gray-800
+const POWER_COLOR  = 0xf59e0b; // amber
+const SELECT_COLOR = 0x3b82f6; // blue
+const MOVE_COLOR   = 0x22c55e; // emerald
+const ATTACK_COLOR = 0xef4444; // red (enemy valid move)
+
+const LIGHT_PIECE_BG = 0x3730a3; // indigo-700
+const DARK_PIECE_BG  = 0x9f1239; // rose-800
+
+const OSCILLATING_COLORS = [
+  0x111827, // step 0 — near black
+  0x1e1b4b, // step 1 — deep indigo
+  0x4c1d95, // step 2 — purple
+  0x064e3b, // step 3 — dark green
+  0x0c4a6e, // step 4 — dark cyan
+  0xe5e7eb, // step 5 — near white
+];
+
+interface PieceContainer {
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Arc;
+  label: Phaser.GameObjects.Text;
+}
 
 export class BoardScene extends Phaser.Scene {
-  private tiles: Phaser.GameObjects.Rectangle[][] = [];
-  private pieceSprites: Map<string, Phaser.GameObjects.Text> = new Map();
+  private tiles: Phaser.GameObjects.Graphics[][] = [];
+  private tileColors: number[][] = [];
+  private pieceContainers: Map<string, PieceContainer> = new Map();
   private selectedPieceId: string | null = null;
   private validMoves: Set<string> = new Set();
+  private attackMoves: Set<string> = new Set();
   private gameState: GameState | null = null;
   private pendingState: GameState | null = null;
   private onMoveFn?: (from: [number, number], to: [number, number]) => void;
-  private onSelectSpellFn?: () => void;
 
   constructor() {
     super({ key: "BoardScene" });
   }
 
   create() {
+    this.cameras.main.setBackgroundColor(0x070b14);
     this.drawBoard();
     this.input.on("pointerdown", this.handleClick, this);
-    // Apply any state that arrived before the scene was ready
     if (this.pendingState) {
       this.applyState(this.pendingState);
       this.pendingState = null;
@@ -35,41 +56,56 @@ export class BoardScene extends Phaser.Scene {
   private drawBoard() {
     for (let row = 0; row < BOARD_SIZE; row++) {
       this.tiles[row] = [];
+      this.tileColors[row] = [];
       for (let col = 0; col < BOARD_SIZE; col++) {
-        const x = col * TILE_SIZE + TILE_SIZE / 2;
-        const y = row * TILE_SIZE + TILE_SIZE / 2;
-        const isPowerPoint = POWER_POINTS.some(([pc, pr]) => pc === col && pr === row);
+        const x = col * TILE_SIZE;
+        const y = row * TILE_SIZE;
         const isOscillating = OSCILLATING_SQUARES.has(row * BOARD_SIZE + col);
-        const baseColor = isOscillating
-          ? LUMINANCE_COLORS[3] // start at green (mid)
-          : (col + row) % 2 === 0 ? LIGHT_COLOR : DARK_COLOR;
+        const color = isOscillating ? OSCILLATING_COLORS[3] : (col + row) % 2 === 0 ? LIGHT_TILE : DARK_TILE;
+        this.tileColors[row][col] = color;
 
-        const rect = this.add.rectangle(x, y, TILE_SIZE - 2, TILE_SIZE - 2, baseColor);
-        rect.setStrokeStyle(1, 0x000000, 0.3);
-        rect.setInteractive();
-        rect.setData("col", col);
-        rect.setData("row", row);
+        const g = this.add.graphics();
+        this.drawTile(g, x, y, color, false);
+        this.tiles[row][col] = g;
 
-        if (isPowerPoint) {
-          this.add.rectangle(x, y, TILE_SIZE - 2, TILE_SIZE - 2, POWER_COLOR, 0.2);
-          // Pulsing border
-          this.tweens.add({
-            targets: rect,
-            strokeColor: POWER_COLOR,
-            duration: 800,
-            yoyo: true,
-            repeat: -1,
-          });
-        }
-
-        this.tiles[row][col] = rect;
+        const isPowerPoint = POWER_POINTS.some(([pc, pr]) => pc === col && pr === row);
+        if (isPowerPoint) this.addPowerPointGlow(col, row);
       }
     }
   }
 
+  private drawTile(g: Phaser.GameObjects.Graphics, x: number, y: number, color: number, selected: boolean) {
+    g.clear();
+    const pad = 1;
+    const r = 4;
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(x + pad, y + pad, TILE_SIZE - pad * 2, TILE_SIZE - pad * 2, r);
+    if (selected) {
+      g.lineStyle(3, SELECT_COLOR, 1);
+      g.strokeRoundedRect(x + pad, y + pad, TILE_SIZE - pad * 2, TILE_SIZE - pad * 2, r);
+    }
+  }
+
+  private addPowerPointGlow(col: number, row: number) {
+    const cx = col * TILE_SIZE + TILE_SIZE / 2;
+    const cy = row * TILE_SIZE + TILE_SIZE / 2;
+    const ring = this.add.graphics();
+    ring.lineStyle(2, POWER_COLOR, 0.8);
+    ring.strokeCircle(cx, cy, 22);
+    this.tweens.add({
+      targets: ring,
+      alpha: { from: 0.3, to: 1 },
+      scaleX: { from: 0.9, to: 1.1 },
+      scaleY: { from: 0.9, to: 1.1 },
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
   updateState(state: GameState) {
     if (this.tiles.length === 0) {
-      // Scene not ready yet — store and apply in create()
       this.pendingState = state;
       return;
     }
@@ -83,19 +119,18 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private updateLuminance(step: number) {
-    const color = LUMINANCE_COLORS[step];
+    const color = OSCILLATING_COLORS[step];
     for (let row = 0; row < BOARD_SIZE; row++) {
       for (let col = 0; col < BOARD_SIZE; col++) {
-        const idx = row * BOARD_SIZE + col;
-        if (OSCILLATING_SQUARES.has(idx)) {
-          this.tiles[row][col].setFillStyle(color);
+        if (OSCILLATING_SQUARES.has(row * BOARD_SIZE + col)) {
+          this.tileColors[row][col] = color;
+          this.drawTile(this.tiles[row][col], col * TILE_SIZE, row * TILE_SIZE, color, false);
         }
       }
     }
   }
 
   private renderPieces(board: (BoardPiece | null)[][]) {
-    // Remove sprites for pieces no longer on the board
     const currentIds = new Set<string>();
     for (let row = 0; row < BOARD_SIZE; row++) {
       for (let col = 0; col < BOARD_SIZE; col++) {
@@ -103,31 +138,49 @@ export class BoardScene extends Phaser.Scene {
         if (!piece) continue;
         currentIds.add(piece.id);
 
-        if (!this.pieceSprites.has(piece.id)) {
-          const sprite = this.createPieceSprite(piece);
-          this.pieceSprites.set(piece.id, sprite);
+        if (!this.pieceContainers.has(piece.id)) {
+          const pc = this.createPieceContainer(piece);
+          this.pieceContainers.set(piece.id, pc);
         }
-
-        const sprite = this.pieceSprites.get(piece.id)!;
-        sprite.setPosition(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2);
+        const pc = this.pieceContainers.get(piece.id)!;
+        const cx = col * TILE_SIZE + TILE_SIZE / 2;
+        const cy = row * TILE_SIZE + TILE_SIZE / 2;
+        this.tweens.add({ targets: pc.container, x: cx, y: cy, duration: 150, ease: "Quad.easeOut" });
       }
     }
-
-    for (const [id, sprite] of this.pieceSprites) {
+    for (const [id, pc] of this.pieceContainers) {
       if (!currentIds.has(id)) {
-        sprite.destroy();
-        this.pieceSprites.delete(id);
+        this.tweens.add({ targets: pc.container, alpha: 0, scaleX: 0, scaleY: 0, duration: 200,
+          onComplete: () => { pc.container.destroy(); } });
+        this.pieceContainers.delete(id);
       }
     }
   }
 
-  private createPieceSprite(piece: BoardPiece): Phaser.GameObjects.Text {
-    const emoji = PIECE_EMOJI[piece.type] ?? "?";
-    const text = this.add.text(0, 0, emoji, {
-      fontSize: "28px",
-      color: piece.side === "light" ? "#ffffff" : "#ff6666",
+  private createPieceContainer(piece: BoardPiece): PieceContainer {
+    const cx = piece.col * TILE_SIZE + TILE_SIZE / 2;
+    const cy = piece.row * TILE_SIZE + TILE_SIZE / 2;
+    const radius = 22;
+    const bgColor = piece.side === "light" ? LIGHT_PIECE_BG : DARK_PIECE_BG;
+
+    const bg = this.add.arc(0, 0, radius, 0, 360, false, bgColor);
+    bg.setStrokeStyle(2, piece.side === "light" ? 0x818cf8 : 0xfb7185, 1);
+
+    const label = this.add.text(0, 0, PIECE_LABEL[piece.type] ?? "?", {
+      fontSize: "14px",
+      fontFamily: "Inter, sans-serif",
+      fontStyle: "bold",
+      color: "#ffffff",
     }).setOrigin(0.5);
-    return text;
+
+    const container = this.add.container(cx, cy, [bg, label]);
+    container.setSize(radius * 2, radius * 2);
+
+    // Entrance animation
+    container.setAlpha(0).setScale(0.5);
+    this.tweens.add({ targets: container, alpha: 1, scaleX: 1, scaleY: 1, duration: 250, ease: "Back.easeOut" });
+
+    return { container, bg, label };
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
@@ -136,15 +189,19 @@ export class BoardScene extends Phaser.Scene {
     if (col < 0 || col >= BOARD_SIZE || row < 0 || row >= BOARD_SIZE) return;
 
     const state = this.gameState;
-    if (!state) return;
+    if (!state || state.phase !== "strategy") return;
     const piece = state.board[row][col];
 
     if (this.selectedPieceId) {
       const key = `${col},${row}`;
-      if (this.validMoves.has(key)) {
-        const [fromCol, fromRow] = this.selectedPieceId
-          .split(":").map(Number) as [number, number];
+      if (this.validMoves.has(key) || this.attackMoves.has(key)) {
+        const [fromCol, fromRow] = this.selectedPieceId.split(":").map(Number) as [number, number];
         this.onMoveFn?.([fromCol, fromRow], [col, row]);
+      } else if (piece && piece.side === state.currentTurn && this.selectedPieceId !== `${piece.col}:${piece.row}`) {
+        // Re-select a different friendly piece
+        this.clearSelection();
+        this.selectPiece(piece);
+        return;
       }
       this.clearSelection();
     } else if (piece && piece.side === state.currentTurn) {
@@ -154,66 +211,96 @@ export class BoardScene extends Phaser.Scene {
 
   private selectPiece(piece: BoardPiece) {
     this.selectedPieceId = `${piece.col}:${piece.row}`;
-    this.validMoves = this.computeValidMoves(piece);
+    const { moves, attacks } = this.computeValidMoves(piece);
+    this.validMoves = moves;
+    this.attackMoves = attacks;
+    this.highlightTile(piece.col, piece.row, SELECT_COLOR);
     this.highlightMoves();
   }
 
-  private computeValidMoves(piece: BoardPiece): Set<string> {
+  private computeValidMoves(piece: BoardPiece): { moves: Set<string>; attacks: Set<string> } {
     const moves = new Set<string>();
+    const attacks = new Set<string>();
     const state = this.gameState!;
     const range = piece.moveRange;
 
+    const addSquare = (c: number, r: number) => {
+      const occupant = state.board[r]?.[c];
+      if (occupant?.side === piece.side) return false; // blocked by own piece
+      if (occupant && occupant.side !== piece.side) { attacks.add(`${c},${r}`); return false; }
+      moves.add(`${c},${r}`);
+      return true;
+    };
+
     if (piece.movementType === "teleport") {
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          if (state.board[r][c]?.side !== piece.side) {
-            moves.add(`${c},${r}`);
-          }
-        }
-      }
+      for (let r = 0; r < BOARD_SIZE; r++)
+        for (let c = 0; c < BOARD_SIZE; c++)
+          if (r !== piece.row || c !== piece.col) addSquare(c, r);
     } else if (piece.movementType === "flying") {
-      for (let r = Math.max(0, piece.row - range); r <= Math.min(8, piece.row + range); r++) {
-        for (let c = Math.max(0, piece.col - range); c <= Math.min(8, piece.col + range); c++) {
-          const dist = Math.max(Math.abs(c - piece.col), Math.abs(r - piece.row));
-          if (dist > 0 && dist <= range && state.board[r][c]?.side !== piece.side) {
-            moves.add(`${c},${r}`);
-          }
+      for (let dr = -range; dr <= range; dr++) {
+        for (let dc = -range; dc <= range; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          if (Math.max(Math.abs(dr), Math.abs(dc)) > range) continue;
+          const c = piece.col + dc, r = piece.row + dr;
+          if (c >= 0 && c < BOARD_SIZE && r >= 0 && r < BOARD_SIZE) addSquare(c, r);
         }
       }
     } else {
-      // Ground: orthogonal, no jumping
-      const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-      for (const [dc, dr] of dirs) {
+      for (const [dc, dr] of [[0,1],[0,-1],[1,0],[-1,0]]) {
         for (let step = 1; step <= range; step++) {
-          const c = piece.col + dc * step;
-          const r = piece.row + dr * step;
+          const c = piece.col + dc * step, r = piece.row + dr * step;
           if (c < 0 || c >= BOARD_SIZE || r < 0 || r >= BOARD_SIZE) break;
-          if (state.board[r][c]) {
-            if (state.board[r][c]!.side !== piece.side) moves.add(`${c},${r}`);
-            break;
-          }
-          moves.add(`${c},${r}`);
+          if (!addSquare(c, r)) break;
         }
       }
     }
-    return moves;
+    return { moves, attacks };
+  }
+
+  private highlightTile(col: number, row: number, color: number, alpha = 0.4) {
+    const g = this.tiles[row][col];
+    const x = col * TILE_SIZE, y = row * TILE_SIZE;
+    const base = this.tileColors[row][col];
+    this.drawTile(g, x, y, base, false);
+    const overlay = this.add.graphics();
+    overlay.fillStyle(color, alpha);
+    overlay.fillRoundedRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, 4);
+    overlay.setName(`hl_${col}_${row}`);
+    this.children.bringToTop(overlay);
+    // store for cleanup
+    (g as unknown as Record<string, unknown>)["__hl"] = overlay;
   }
 
   private highlightMoves() {
     for (const key of this.validMoves) {
       const [col, row] = key.split(",").map(Number);
-      this.tiles[row][col].setStrokeStyle(3, MOVE_COLOR);
+      this.highlightTile(col, row, MOVE_COLOR, 0.3);
+    }
+    for (const key of this.attackMoves) {
+      const [col, row] = key.split(",").map(Number);
+      this.highlightTile(col, row, ATTACK_COLOR, 0.4);
     }
   }
 
   private clearSelection() {
     this.selectedPieceId = null;
-    for (let row = 0; row < BOARD_SIZE; row++) {
-      for (let col = 0; col < BOARD_SIZE; col++) {
-        this.tiles[row][col].setStrokeStyle(1, 0x000000, 0.3);
-      }
-    }
+    // Remove all overlay highlights
+    this.children.each((child) => {
+      if (child.name?.startsWith("hl_")) child.destroy();
+    });
     this.validMoves.clear();
+    this.attackMoves.clear();
+  }
+
+  launchCombat(
+    attacker: BoardPiece,
+    defender: BoardPiece,
+    combatState: CombatState,
+    isLocalAttacker: boolean,
+    onEnd: (attackerHp: number, defenderHp: number) => void,
+  ) {
+    this.scene.launch("CombatScene", { attacker, defender, combatState, isLocalAttacker, onCombatEnd: onEnd });
+    this.scene.bringToTop("CombatScene");
   }
 
   setMoveHandler(fn: (from: [number, number], to: [number, number]) => void) {
@@ -221,25 +308,25 @@ export class BoardScene extends Phaser.Scene {
   }
 }
 
-const PIECE_EMOJI: Record<string, string> = {
-  wizard:        "🧙",
-  sorceress:     "🔮",
-  unicorn:       "🦄",
-  basilisk:      "🐍",
-  archer:        "🏹",
-  manticore:     "🦁",
-  valkyrie:      "⚔️",
-  banshee:       "👻",
-  golem:         "🗿",
-  troll:         "👹",
-  djinni:        "🌪️",
-  dragon:        "🐉",
-  phoenix:       "🔥",
-  shapeshifter:  "🌀",
-  knight:        "♞",
-  goblin:        "👺",
-  elemental_fire:"🔥",
-  elemental_earth:"🪨",
-  elemental_water:"💧",
-  elemental_air: "💨",
+const PIECE_LABEL: Record<string, string> = {
+  wizard:         "Wiz",
+  sorceress:      "Sor",
+  unicorn:        "Uni",
+  basilisk:       "Bas",
+  archer:         "Arc",
+  manticore:      "Man",
+  valkyrie:       "Val",
+  banshee:        "Ban",
+  golem:          "Gol",
+  troll:          "Trl",
+  djinni:         "Djn",
+  dragon:         "Drg",
+  phoenix:        "Phx",
+  shapeshifter:   "Shp",
+  knight:         "Knt",
+  goblin:         "Gob",
+  elemental_fire: "EFi",
+  elemental_earth:"EEr",
+  elemental_water:"EWt",
+  elemental_air:  "EAr",
 };

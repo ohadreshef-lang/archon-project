@@ -70,6 +70,7 @@ export interface GameState {
 export interface CombatState {
   attackerPieceId: string;
   defenderPieceId: string;
+  attackerSide: Side;
   boardCol: number;
   boardRow: number;
   squareLuminance: number;

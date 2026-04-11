@@ -1,172 +1,267 @@
 import * as Phaser from "phaser";
-import { TILE_SIZE, LUMINANCE_COLORS } from "@/lib/constants";
+import { LUMINANCE_COLORS } from "@/lib/constants";
 import type { BoardPiece, CombatState } from "@/lib/types";
 
-const ARENA_WIDTH  = 576;
-const ARENA_HEIGHT = 576;
-const BARRIER_COUNT = 8;
+const ARENA_W = 576;
+const ARENA_H = 576;
+
+// Modern arena palette
+const BARRIER_COLORS = [0x374151, 0x4b5563, 0x6b7280];
+const PROJ_LIGHT = 0x818cf8;
+const PROJ_DARK  = 0xfb7185;
 
 interface CombatUnit {
   piece: BoardPiece;
-  sprite: Phaser.GameObjects.Text;
+  circle: Phaser.GameObjects.Arc;
+  label: Phaser.GameObjects.Text;
+  hpBg: Phaser.GameObjects.Rectangle;
   hpBar: Phaser.GameObjects.Rectangle;
   hp: number;
   maxHp: number;
   lastFired: number;
-  velocity: Phaser.Math.Vector2;
+  vx: number;
+  vy: number;
   isLocal: boolean;
+  aiTarget?: CombatUnit;
+}
+
+interface SceneData {
+  attacker: BoardPiece;
+  defender: BoardPiece;
+  combatState: CombatState;
+  isLocalAttacker: boolean;
+  onCombatEnd: (attackerHp: number, defenderHp: number) => void;
 }
 
 export class CombatScene extends Phaser.Scene {
+  private localUnit!: CombatUnit;
+  private remoteUnit!: CombatUnit;
   private attacker!: CombatUnit;
   private defender!: CombatUnit;
   private projectiles!: Phaser.GameObjects.Group;
   private barriers: Phaser.GameObjects.Rectangle[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private fireKey!: Phaser.Input.Keyboard.Key;
-  private luminanceStep: number = 3;
   private onCombatEnd?: (attackerHp: number, defenderHp: number) => void;
+  private ended = false;
+  private isLocalAttacker = true;
 
   constructor() {
     super({ key: "CombatScene" });
   }
 
-  init(data: { combatState: CombatState; attacker: BoardPiece; defender: BoardPiece; isAttacker: boolean; luminanceStep: number }) {
-    this.luminanceStep = data.luminanceStep;
-  }
+  create(data: SceneData) {
+    this.ended = false;
+    this.onCombatEnd = data.onCombatEnd;
+    this.isLocalAttacker = data.isLocalAttacker;
 
-  create(data: { combatState: CombatState; attacker: BoardPiece; defender: BoardPiece; isAttacker: boolean; luminanceStep: number }) {
-    this.cameras.main.setBackgroundColor(LUMINANCE_COLORS[this.luminanceStep]);
+    const lumStep = data.combatState.squareLuminance;
+    this.cameras.main.setBackgroundColor(this.arenaBackground(lumStep));
 
     this.projectiles = this.add.group();
     this.createBarriers();
+    this.drawArenaFrame(lumStep);
 
-    const attackerHpBonus = this.calcHpBonus(data.attacker.side, this.luminanceStep);
-    const defenderHpBonus = this.calcHpBonus(data.defender.side, this.luminanceStep);
+    const aBonus = this.hpBonus(data.attacker.side, lumStep);
+    const dBonus = this.hpBonus(data.defender.side, lumStep);
 
-    this.attacker = this.createUnit(data.attacker, 80, ARENA_HEIGHT / 2, attackerHpBonus, data.isAttacker);
-    this.defender = this.createUnit(data.defender, ARENA_WIDTH - 80, ARENA_HEIGHT / 2, defenderHpBonus, !data.isAttacker);
+    this.attacker = this.createUnit(data.attacker, 80,          ARENA_H / 2, aBonus, data.isLocalAttacker);
+    this.defender = this.createUnit(data.defender, ARENA_W - 80, ARENA_H / 2, dBonus, !data.isLocalAttacker);
 
-    this.cursors = this.input.keyboard!.createCursorKeys();
-    this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-  }
+    this.localUnit  = data.isLocalAttacker ? this.attacker : this.defender;
+    this.remoteUnit = data.isLocalAttacker ? this.defender : this.attacker;
+    this.remoteUnit.aiTarget = this.localUnit;
 
-  private calcHpBonus(side: "light" | "dark", step: number): number {
-    // Light gets bonus at high steps (white), dark gets bonus at low steps (black)
-    if (side === "light") return Math.round((step / 5) * 7);
-    return Math.round(((5 - step) / 5) * 7);
-  }
+    this.cursors  = this.input.keyboard!.createCursorKeys();
+    this.fireKey  = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-  private createUnit(piece: BoardPiece, x: number, y: number, hpBonus: number, isLocal: boolean): CombatUnit {
-    const hp = piece.hp + hpBonus;
-    const sprite = this.add.text(x, y, "●", {
-      fontSize: "32px",
-      color: piece.side === "light" ? "#ffffff" : "#ff4444",
+    // Title card
+    const title = this.add.text(ARENA_W / 2, 28, "⚔  BATTLE  ⚔", {
+      fontSize: "18px", fontFamily: "Inter, sans-serif", fontStyle: "bold", color: "#f59e0b",
     }).setOrigin(0.5);
-
-    const barBg = this.add.rectangle(x, y - 30, 60, 8, 0x333333);
-    const hpBar = this.add.rectangle(x - 30, y - 30, 60, 8, piece.side === "light" ? 0x00ff88 : 0xff4444);
-    hpBar.setOrigin(0, 0.5);
-
-    return { piece, sprite, hpBar, hp, maxHp: hp, lastFired: 0, velocity: new Phaser.Math.Vector2(0, 0), isLocal };
+    this.tweens.add({ targets: title, alpha: { from: 0, to: 1 }, duration: 400 });
   }
 
-  private createBarriers() {
-    for (let i = 0; i < BARRIER_COUNT; i++) {
-      const x = Phaser.Math.Between(120, ARENA_WIDTH - 120);
-      const y = Phaser.Math.Between(80, ARENA_HEIGHT - 80);
-      const w = Phaser.Math.Between(32, 80);
-      const h = Phaser.Math.Between(20, 48);
-      const barrier = this.add.rectangle(x, y, w, h, 0x888888);
-      this.barriers.push(barrier);
+  private arenaBackground(step: number): number {
+    const bases = [0x050505, 0x050510, 0x10051a, 0x051008, 0x05100f, 0x1a1a1a];
+    return bases[step] ?? 0x0a0a0a;
+  }
+
+  private hpBonus(side: "light" | "dark", step: number): number {
+    return side === "light" ? Math.round((step / 5) * 7) : Math.round(((5 - step) / 5) * 7);
+  }
+
+  private drawArenaFrame(step: number) {
+    const g = this.add.graphics();
+    // Outer glow border
+    const borderColor = step >= 3 ? 0x818cf8 : 0xfb7185;
+    g.lineStyle(3, borderColor, 0.5);
+    g.strokeRect(4, 4, ARENA_W - 8, ARENA_H - 8);
+    // Corner accents
+    const corners: [number, number][] = [[0,0],[ARENA_W,0],[0,ARENA_H],[ARENA_W,ARENA_H]];
+    for (const [cx, cy] of corners) {
+      g.lineStyle(2, 0xf59e0b, 0.8);
+      g.strokeRect(cx === 0 ? 8 : ARENA_W - 22, cy === 0 ? 8 : ARENA_H - 22, 14, 14);
     }
   }
 
+  private createBarriers() {
+    const positions = [
+      [120, 140], [240, 100], [360, 140], [460, 200],
+      [120, 430], [240, 470], [360, 430], [460, 380],
+    ];
+    for (let i = 0; i < positions.length; i++) {
+      const [x, y] = positions[i];
+      const w = 60 + (i % 3) * 20;
+      const h = 20 + (i % 2) * 14;
+      const color = BARRIER_COLORS[i % BARRIER_COLORS.length];
+      const b = this.add.rectangle(x, y, w, h, color);
+      b.setStrokeStyle(1, 0x6b7280, 0.5);
+      this.barriers.push(b);
+    }
+  }
+
+  private createUnit(piece: BoardPiece, x: number, y: number, hpBonus: number, isLocal: boolean): CombatUnit {
+    const hp = Math.min(piece.hp + hpBonus, piece.maxHp + hpBonus);
+    const isLight = piece.side === "light";
+    const fillColor = isLight ? 0x3730a3 : 0x9f1239;
+    const strokeColor = isLight ? 0x818cf8 : 0xfb7185;
+
+    const circle = this.add.arc(x, y, 24, 0, 360, false, fillColor);
+    circle.setStrokeStyle(2, strokeColor);
+
+    const label = this.add.text(x, y, PIECE_LABEL[piece.type] ?? "?", {
+      fontSize: "13px", fontFamily: "Inter, sans-serif", fontStyle: "bold", color: "#fff",
+    }).setOrigin(0.5);
+
+    // HP bar
+    const barW = 60;
+    const hpBg = this.add.rectangle(x, y - 38, barW, 8, 0x1f2937).setStrokeStyle(1, 0x374151);
+    const hpBar = this.add.rectangle(x - barW / 2, y - 38, barW, 8, isLight ? 0x818cf8 : 0xfb7185).setOrigin(0, 0.5);
+
+    // Name label
+    this.add.text(x, y - 50, piece.type.toUpperCase(), {
+      fontSize: "9px", fontFamily: "Inter, sans-serif", color: isLight ? "#818cf8" : "#fb7185",
+    }).setOrigin(0.5);
+
+    return { piece, circle, label, hpBg, hpBar, hp, maxHp: hp, lastFired: 0, vx: 0, vy: 0, isLocal };
+  }
+
   update(time: number) {
-    this.handleInput(time);
+    if (this.ended) return;
+    this.handleLocalInput(time);
+    this.runAI(this.remoteUnit, time);
     this.moveUnit(this.attacker);
     this.moveUnit(this.defender);
     this.updateProjectiles();
-    this.checkCombatEnd();
+    this.checkEnd();
   }
 
-  private handleInput(time: number) {
-    const unit = this.attacker.isLocal ? this.attacker : this.defender;
+  private handleLocalInput(time: number) {
+    const u = this.localUnit;
     const speed = 180;
-
-    unit.velocity.set(0, 0);
-    if (this.cursors.left.isDown)  unit.velocity.x = -speed;
-    if (this.cursors.right.isDown) unit.velocity.x =  speed;
-    if (this.cursors.up.isDown)    unit.velocity.y = -speed;
-    if (this.cursors.down.isDown)  unit.velocity.y =  speed;
+    u.vx = 0; u.vy = 0;
+    if (this.cursors.left.isDown)  u.vx = -speed;
+    if (this.cursors.right.isDown) u.vx =  speed;
+    if (this.cursors.up.isDown)    u.vy = -speed;
+    if (this.cursors.down.isDown)  u.vy =  speed;
 
     if (Phaser.Input.Keyboard.JustDown(this.fireKey)) {
-      const cooldown = 1000 / unit.piece.attackSpeed;
-      if (time - unit.lastFired > cooldown) {
-        this.fireProjectile(unit, time);
+      const cooldown = 1000 / u.piece.attackSpeed;
+      if (time - u.lastFired > cooldown) {
+        this.fireProjectile(u, u === this.attacker ? this.defender : this.attacker, time);
       }
     }
   }
 
-  private moveUnit(unit: CombatUnit) {
-    const dt = this.game.loop.delta / 1000;
-    const nx = unit.sprite.x + unit.velocity.x * dt;
-    const ny = unit.sprite.y + unit.velocity.y * dt;
+  private runAI(u: CombatUnit, time: number) {
+    if (!u.aiTarget) return;
+    const target = u.aiTarget;
+    const dx = target.circle.x - u.circle.x;
+    const dy = target.circle.y - u.circle.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const speed = 120;
 
-    if (nx > 16 && nx < ARENA_WIDTH - 16) unit.sprite.x = nx;
-    if (ny > 16 && ny < ARENA_HEIGHT - 16) unit.sprite.y = ny;
+    // Move toward target but keep distance ~150px
+    const idealDist = 150;
+    if (dist > idealDist + 10) {
+      u.vx = (dx / dist) * speed;
+      u.vy = (dy / dist) * speed;
+    } else if (dist < idealDist - 10) {
+      u.vx = -(dx / dist) * speed;
+      u.vy = -(dy / dist) * speed;
+    } else {
+      u.vx = 0; u.vy = 0;
+    }
 
-    unit.hpBar.x = unit.sprite.x - 30;
-    unit.hpBar.y = unit.sprite.y - 30;
-    unit.hpBar.width = 60 * (unit.hp / unit.maxHp);
+    const cooldown = 1000 / u.piece.attackSpeed;
+    if (time - u.lastFired > cooldown) {
+      this.fireProjectile(u, target, time);
+    }
   }
 
-  private fireProjectile(unit: CombatUnit, time: number) {
-    unit.lastFired = time;
-    const target = unit === this.attacker ? this.defender : this.attacker;
-    const angle = Phaser.Math.Angle.Between(unit.sprite.x, unit.sprite.y, target.sprite.x, target.sprite.y);
+  private moveUnit(u: CombatUnit) {
+    const dt = this.game.loop.delta / 1000;
+    const nx = Phaser.Math.Clamp(u.circle.x + u.vx * dt, 28, ARENA_W - 28);
+    const ny = Phaser.Math.Clamp(u.circle.y + u.vy * dt, 28, ARENA_H - 28);
+    u.circle.setPosition(nx, ny);
+    u.label.setPosition(nx, ny);
+    u.hpBg.setPosition(nx, ny - 38);
+    u.hpBar.setPosition(nx - 30, ny - 38);
+  }
 
-    const proj = this.add.circle(unit.sprite.x, unit.sprite.y, 5, unit.piece.side === "light" ? 0xffff00 : 0xff6600);
-    const vx = Math.cos(angle) * unit.piece.projectileSpeed;
-    const vy = Math.sin(angle) * unit.piece.projectileSpeed;
-    proj.setData("vx", vx);
-    proj.setData("vy", vy);
-    proj.setData("owner", unit === this.attacker ? "attacker" : "defender");
+  private fireProjectile(from: CombatUnit, to: CombatUnit, time: number) {
+    from.lastFired = time;
+    const angle = Phaser.Math.Angle.Between(from.circle.x, from.circle.y, to.circle.x, to.circle.y);
+    const speed = from.piece.projectileSpeed || 280;
+    const color = from.piece.side === "light" ? PROJ_LIGHT : PROJ_DARK;
+
+    const proj = this.add.circle(from.circle.x, from.circle.y, 5, color);
+    proj.setData("vx", Math.cos(angle) * speed);
+    proj.setData("vy", Math.sin(angle) * speed);
+    proj.setData("owner", from === this.attacker ? "attacker" : "defender");
     proj.setData("damage", 2);
     this.projectiles.add(proj);
   }
 
   private updateProjectiles() {
     const dt = this.game.loop.delta / 1000;
-    for (const proj of this.projectiles.getChildren() as Phaser.GameObjects.Arc[]) {
+    for (const obj of this.projectiles.getChildren()) {
+      const proj = obj as Phaser.GameObjects.Arc;
       proj.x += proj.getData("vx") * dt;
       proj.y += proj.getData("vy") * dt;
 
-      // Out of bounds
-      if (proj.x < 0 || proj.x > ARENA_WIDTH || proj.y < 0 || proj.y > ARENA_HEIGHT) {
-        proj.destroy();
-        continue;
+      if (proj.x < 0 || proj.x > ARENA_W || proj.y < 0 || proj.y > ARENA_H) {
+        proj.destroy(); continue;
       }
-
       const owner = proj.getData("owner");
       const target = owner === "attacker" ? this.defender : this.attacker;
-      const dist = Phaser.Math.Distance.Between(proj.x, proj.y, target.sprite.x, target.sprite.y);
-      if (dist < 20) {
+      if (Phaser.Math.Distance.Between(proj.x, proj.y, target.circle.x, target.circle.y) < 26) {
         target.hp = Math.max(0, target.hp - proj.getData("damage"));
-        target.hpBar.width = 60 * (target.hp / target.maxHp);
+        const pct = target.hp / target.maxHp;
+        target.hpBar.width = 60 * pct;
+        // Flash effect
+        this.tweens.add({ targets: target.circle, alpha: 0.3, duration: 60, yoyo: true });
         proj.destroy();
       }
     }
   }
 
-  private checkCombatEnd() {
+  private checkEnd() {
     if (this.attacker.hp <= 0 || this.defender.hp <= 0) {
-      this.onCombatEnd?.(this.attacker.hp, this.defender.hp);
-      this.scene.stop();
+      this.ended = true;
+      this.time.delayedCall(600, () => {
+        this.onCombatEnd?.(this.attacker.hp, this.defender.hp);
+        this.scene.stop();
+      });
     }
   }
-
-  setCombatEndHandler(fn: (attackerHp: number, defenderHp: number) => void) {
-    this.onCombatEnd = fn;
-  }
 }
+
+const PIECE_LABEL: Record<string, string> = {
+  wizard:"Wiz", sorceress:"Sor", unicorn:"Uni", basilisk:"Bas",
+  archer:"Arc", manticore:"Man", valkyrie:"Val", banshee:"Ban",
+  golem:"Gol", troll:"Trl", djinni:"Djn", dragon:"Drg",
+  phoenix:"Phx", shapeshifter:"Shp", knight:"Knt", goblin:"Gob",
+  elemental_fire:"EFi", elemental_earth:"EEr", elemental_water:"EWt", elemental_air:"EAr",
+};
