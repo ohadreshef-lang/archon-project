@@ -77,6 +77,6 @@ export interface CombatState {
 }
 
 export interface NetworkMessage {
-  type: "MOVE" | "SPELL" | "COMBAT_ACTION" | "COMBAT_RESULT" | "JOIN" | "SYNC";
+  type: "MOVE" | "SPELL" | "COMBAT_ACTION" | "COMBAT_RESULT" | "JOIN" | "SYNC" | "REQUEST_SYNC";
   payload: unknown;
 }

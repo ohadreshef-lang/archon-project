@@ -36,6 +36,11 @@ export default function GameRoom({ roomId, playerSide }: Props) {
   const socket = usePartySocket({
     host: PARTYKIT_HOST,
     room: roomId,
+    onOpen(event) {
+      // Actively request current state on (re)connect so late-joining
+      // players don't get stuck on the initial board state.
+      (event.target as WebSocket).send(JSON.stringify({ type: "REQUEST_SYNC" }));
+    },
     onMessage(event) {
       const msg = JSON.parse(event.data) as NetworkMessage;
       if (msg.type === "SYNC" || msg.type === "MOVE") {
