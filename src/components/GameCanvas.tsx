@@ -49,6 +49,7 @@ export default function GameCanvas({ gameState, playerSide, onMove, onCombatResu
       });
 
       gameRef.current = game;
+      boardScene.setPlayerSide(playerSide);
       boardScene.setMoveHandler(onMove);
       boardScene.updateState(gameState);
     })();

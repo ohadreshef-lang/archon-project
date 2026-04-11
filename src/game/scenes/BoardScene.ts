@@ -38,6 +38,7 @@ export class BoardScene extends Phaser.Scene {
   private gameState: GameState | null = null;
   private pendingState: GameState | null = null;
   private onMoveFn?: (from: [number, number], to: [number, number]) => void;
+  private playerSide: "light" | "dark" = "light";
 
   constructor() {
     super({ key: "BoardScene" });
@@ -186,6 +187,8 @@ export class BoardScene extends Phaser.Scene {
 
     const state = this.gameState;
     if (!state || state.phase !== "strategy") return;
+    // Only allow interaction on this player's turn
+    if (state.currentTurn !== this.playerSide) return;
     const piece = state.board[row][col];
 
     if (this.selectedPieceId) {
@@ -193,14 +196,14 @@ export class BoardScene extends Phaser.Scene {
       if (this.validMoves.has(key) || this.attackMoves.has(key)) {
         const [fromCol, fromRow] = this.selectedPieceId.split(":").map(Number) as [number, number];
         this.onMoveFn?.([fromCol, fromRow], [col, row]);
-      } else if (piece && piece.side === state.currentTurn && this.selectedPieceId !== `${piece.col}:${piece.row}`) {
+      } else if (piece && piece.side === this.playerSide && this.selectedPieceId !== `${piece.col}:${piece.row}`) {
         // Re-select a different friendly piece
         this.clearSelection();
         this.selectPiece(piece);
         return;
       }
       this.clearSelection();
-    } else if (piece && piece.side === state.currentTurn) {
+    } else if (piece && piece.side === this.playerSide) {
       this.selectPiece(piece);
     }
   }
@@ -301,6 +304,10 @@ export class BoardScene extends Phaser.Scene {
 
   setMoveHandler(fn: (from: [number, number], to: [number, number]) => void) {
     this.onMoveFn = fn;
+  }
+
+  setPlayerSide(side: "light" | "dark") {
+    this.playerSide = side;
   }
 }
 
