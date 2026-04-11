@@ -99,11 +99,11 @@ const en: Translation = {
   ],
 
   squares: [
-    { label: "Light Squares",       desc: "Permanently light. Boost Light side HP in combat." },
-    { label: "Dark Squares",        desc: "Permanently dark. Boost Dark side HP in combat." },
-    { label: "Oscillating Squares", desc: "Shift through 6 shades over time — advantage flows between sides." },
+    { label: "Light Squares",       desc: "Permanently light. Light side starts on the left (columns A–B). Boosts Light HP in combat." },
+    { label: "Dark Squares",        desc: "Permanently dark. Dark side starts on the right (columns H–I). Boosts Dark HP in combat." },
+    { label: "Oscillating Squares", desc: "Cycle through 6 shades each turn — column E, the middle row, and inner corners of each quadrant. Advantage flows between sides." },
   ],
-  board_note: "The luminance cycle shifts one step each turn. Squares that favour you now may favour your opponent soon — plan around it.",
+  board_note: "Light plays from the left; Dark from the right. The 5 Power Points form a cross: centre (E5), left edge (A5 — permanent Light home), right edge (I5 — permanent Dark home), top (E1), and bottom (E9). The luminance cycle shifts one step each turn — squares that favour you now may favour your opponent soon.",
 
   controls: [
     { label: "Board — Select Piece",  desc: "Click one of your pieces. Valid moves highlight green, valid attacks highlight red." },
@@ -183,11 +183,11 @@ const es: Translation = {
   ],
 
   squares: [
-    { label: "Casillas Claras",      desc: "Permanentemente claras. Aumentan los PV del lado Claro en combate." },
-    { label: "Casillas Oscuras",     desc: "Permanentemente oscuras. Aumentan los PV del lado Oscuro en combate." },
-    { label: "Casillas Oscilantes",  desc: "Cambian entre 6 tonalidades — la ventaja alterna entre los bandos." },
+    { label: "Casillas Claras",      desc: "Permanentemente claras. El lado Claro comienza a la izquierda (columnas A–B). Aumentan los PV del lado Claro en combate." },
+    { label: "Casillas Oscuras",     desc: "Permanentemente oscuras. El lado Oscuro comienza a la derecha (columnas H–I). Aumentan los PV del lado Oscuro en combate." },
+    { label: "Casillas Oscilantes",  desc: "Cambian entre 6 tonalidades cada turno — la columna E, la fila central y los rincones interiores de cada cuadrante. La ventaja alterna entre bandos." },
   ],
-  board_note: "El ciclo de luminancia avanza un paso cada turno. Las casillas que te favorecen ahora pueden favorecer a tu rival pronto — planifica en consecuencia.",
+  board_note: "El lado Claro juega desde la izquierda; el Oscuro desde la derecha. Los 5 Puntos de Poder forman una cruz: centro (E5), borde izquierdo (A5 — hogar permanente del lado Claro), borde derecho (I5 — hogar permanente del lado Oscuro), arriba (E1) y abajo (E9). El ciclo de luminancia avanza un paso cada turno — las casillas que te favorecen ahora pueden favorecer a tu rival pronto.",
 
   controls: [
     { label: "Tablero — Seleccionar",   desc: "Haz clic en una de tus piezas. Los movimientos válidos se iluminan en verde, los ataques en rojo." },
@@ -267,11 +267,11 @@ const he: Translation = {
   ],
 
   squares: [
-    { label: "ריבועים בהירים",   desc: "בהירים לצמיתות. מעניקים נק' חיים נוספות לצד האור בקרב." },
-    { label: "ריבועים אפלים",    desc: "אפלים לצמיתות. מעניקים נק' חיים נוספות לצד החושך בקרב." },
-    { label: "ריבועים דינמיים",  desc: "עוברים בין 6 גוונים לאורך המשחק — היתרון עובר בין הצדדים." },
+    { label: "ריבועים בהירים",   desc: "בהירים לצמיתות. צד האור מתחיל משמאל (עמודות A–B). מעניקים נק' חיים נוספות לצד האור בקרב." },
+    { label: "ריבועים אפלים",    desc: "אפלים לצמיתות. צד החושך מתחיל מימין (עמודות H–I). מעניקים נק' חיים נוספות לצד החושך בקרב." },
+    { label: "ריבועים דינמיים",  desc: "עוברים בין 6 גוונים בכל תור — עמודה E, שורת האמצע ופינות פנימיות של כל רבעון. היתרון עובר בין הצדדים." },
   ],
-  board_note: "מחזור הלומינסנס מתקדם צעד אחד בכל תור. ריבועים שמעניקים לך יתרון עכשיו עשויים להעניק יתרון ליריבך בקרוב — תכנן בהתאם.",
+  board_note: "האור משחק משמאל; החושך מימין. 5 נקודות הכוח יוצרות צלב: מרכז (E5), קצה שמאל (A5 — בית קבוע של האור), קצה ימין (I5 — בית קבוע של החושך), למעלה (E1) ולמטה (E9). מחזור הלומינסנס מתקדם צעד אחד בכל תור — ריבועים שמעניקים לך יתרון עכשיו עשויים להעניק יתרון ליריבך בקרוב.",
 
   controls: [
     { label: "לוח — בחירת כלי",    desc: "לחץ על אחד מכליך. מהלכים חוקיים מסומנים בירוק, התקפות חוקיות מסומנות באדום." },
@@ -351,11 +351,11 @@ const fr: Translation = {
   ],
 
   squares: [
-    { label: "Cases claires",     desc: "Permanentemente claires. Augmentent les PV du côté Lumière en combat." },
-    { label: "Cases sombres",     desc: "Permanentemente sombres. Augmentent les PV du côté Ombre en combat." },
-    { label: "Cases oscillantes", desc: "Alternent entre 6 nuances — l'avantage bascule entre les camps." },
+    { label: "Cases claires",     desc: "Définitivement claires. Le côté Lumière débute à gauche (colonnes A–B). Augmentent les PV du côté Lumière en combat." },
+    { label: "Cases sombres",     desc: "Définitivement sombres. Le côté Ombre débute à droite (colonnes H–I). Augmentent les PV du côté Ombre en combat." },
+    { label: "Cases oscillantes", desc: "Alternent entre 6 nuances à chaque tour — colonne E, rangée centrale et coins intérieurs de chaque quadrant. L'avantage bascule entre les camps." },
   ],
-  board_note: "Le cycle de luminance avance d'un cran à chaque tour. Les cases qui vous favorisent maintenant pourraient favoriser votre adversaire bientôt — anticipez.",
+  board_note: "La Lumière joue à gauche ; l'Ombre à droite. Les 5 Points de Pouvoir forment une croix : centre (E5), bord gauche (A5 — demeure permanente de la Lumière), bord droit (I5 — demeure permanente de l'Ombre), haut (E1) et bas (E9). Le cycle de luminance avance d'un cran à chaque tour — les cases qui vous favorisent maintenant pourraient favoriser votre adversaire bientôt.",
 
   controls: [
     { label: "Plateau — Sélectionner", desc: "Cliquez sur l'une de vos pièces. Les mouvements valides s'affichent en vert, les attaques en rouge." },
@@ -435,11 +435,11 @@ const de: Translation = {
   ],
 
   squares: [
-    { label: "Helle Felder",       desc: "Dauerhaft hell. Erhöhen die LP der Lichtseite im Kampf." },
-    { label: "Dunkle Felder",      desc: "Dauerhaft dunkel. Erhöhen die LP der Dunkelseite im Kampf." },
-    { label: "Wechselnde Felder",  desc: "Wechseln zwischen 6 Schattierungen — der Vorteil fließt zwischen den Seiten." },
+    { label: "Helle Felder",       desc: "Dauerhaft hell. Die Lichtseite startet links (Spalten A–B). Erhöhen die LP der Lichtseite im Kampf." },
+    { label: "Dunkle Felder",      desc: "Dauerhaft dunkel. Die Dunkelseite startet rechts (Spalten H–I). Erhöhen die LP der Dunkelseite im Kampf." },
+    { label: "Wechselnde Felder",  desc: "Wechseln jeden Zug zwischen 6 Schattierungen — Spalte E, die mittlere Reihe und innere Ecken jedes Quadranten. Der Vorteil fließt zwischen den Seiten." },
   ],
-  board_note: "Der Luminanz-Zyklus schreitet jeden Zug einen Schritt voran. Felder, die dir jetzt nützen, können deinem Gegner bald nützen — plane entsprechend.",
+  board_note: "Licht spielt von links; Dunkel von rechts. Die 5 Kraftpunkte bilden ein Kreuz: Mitte (E5), linker Rand (A5 — dauerhaftes Zuhause des Lichts), rechter Rand (I5 — dauerhaftes Zuhause der Dunkelheit), oben (E1) und unten (E9). Der Luminanz-Zyklus schreitet jeden Zug einen Schritt voran — Felder, die dir jetzt nützen, können deinem Gegner bald nützen.",
 
   controls: [
     { label: "Spielfeld — Auswählen",       desc: "Klicke auf eine deiner Figuren. Gültige Züge werden grün, gültige Angriffe rot hervorgehoben." },

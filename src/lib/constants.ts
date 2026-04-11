@@ -4,37 +4,50 @@ export const BOARD_PIXEL_SIZE = BOARD_SIZE * TILE_SIZE;
 
 // Power point positions [col, row]
 export const POWER_POINTS: [number, number][] = [
-  [4, 4], // center
-  [0, 4], // left edge (Light home)
-  [8, 4], // right edge (Dark home)
-  [4, 0], // top edge
-  [4, 8], // bottom edge
+  [4, 4], // E5 — center (oscillating)
+  [0, 4], // A5 — left edge, Light home (permanently light)
+  [8, 4], // I5 — right edge, Dark home (permanently dark)
+  [4, 0], // E1 — top edge (oscillating)
+  [4, 8], // E9 — bottom edge (oscillating)
 ];
 
-// Luminance cycle: 0=black, 1=dark blue, 2=purple, 3=green, 4=cyan, 5=white
+// A5 and I5 are permanently assigned — they do NOT oscillate
+export const LIGHT_HOME: [number, number] = [0, 4]; // [col, row]
+export const DARK_HOME:  [number, number] = [8, 4];
+
+// Luminance cycle: subtle dark-slate shades shift with each turn
+// (used only for display — not the old rainbow palette)
 export const LUMINANCE_COLORS = [
-  0x000000, // 0 black
-  0x00008b, // 1 dark blue
-  0x800080, // 2 purple
-  0x008000, // 3 green
-  0x00ffff, // 4 cyan
-  0xffffff, // 5 white
+  0x000000, 0x00008b, 0x800080, 0x008000, 0x00ffff, 0xffffff,
 ];
 
 export const LUMINANCE_CYCLE_LENGTH = 12; // turns per full half-cycle
 
-// Squares that oscillate with luminance cycle (indices on 9x9 board)
-// Roughly every 3rd square in a checkerboard-like pattern
+// Archon-correct oscillating squares (31 total ≈ 1/3 of board):
+//   • All of column E (col 4): 9 squares
+//   • Middle row (row 4) except A5 (col 0) and I5 (col 8): 6 squares
+//   • Inner 2×2 of each corner quadrant (4 quadrants × 4 squares): 16 squares
+//
+// Each quadrant is 4×4 (e.g. rows 0-3, cols 0-3). Its inner 2×2 contains
+// 2 light + 2 dark squares → 6 light + 6 dark + 4 oscillating = 16 ✓
 export const OSCILLATING_SQUARES: Set<number> = new Set([
-  1, 3, 5, 7,
-  9, 11, 13, 15, 17,
-  19, 21, 23, 25, 27,
-  28, 30, 32, 34, 36,
-  37, 39, 41, 43, 45,
-  46, 48, 50, 52, 54,
-  55, 57, 59, 61, 63,
-  64, 66, 68, 70, 72,
-  73, 75, 77, 79,
+  // Column 4 (col E), all rows  — index = row*9+4
+  4, 13, 22, 31, 40, 49, 58, 67, 76,
+
+  // Row 4 extras (not col 0, col 4, col 8)
+  37, 38, 39, 41, 42, 43,
+
+  // Top-left quadrant inner 2×2 (rows 1-2, cols 1-2)
+  10, 11, 19, 20,
+
+  // Top-right quadrant inner 2×2 (rows 1-2, cols 6-7)
+  15, 16, 24, 25,
+
+  // Bottom-left quadrant inner 2×2 (rows 6-7, cols 1-2)
+  55, 56, 64, 65,
+
+  // Bottom-right quadrant inner 2×2 (rows 6-7, cols 6-7)
+  60, 61, 69, 70,
 ]);
 
 export const PARTYKIT_HOST =

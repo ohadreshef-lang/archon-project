@@ -21,9 +21,12 @@ export function computeValidMoves(
   };
 
   if (piece.movementType === "teleport") {
+    // Teleport jumps freely but is still limited to moveRange (Chebyshev distance)
     for (let r = 0; r < BOARD_SIZE; r++)
       for (let c = 0; c < BOARD_SIZE; c++)
-        if (r !== piece.row || c !== piece.col) add(c, r);
+        if ((r !== piece.row || c !== piece.col) &&
+            Math.max(Math.abs(r - piece.row), Math.abs(c - piece.col)) <= range)
+          add(c, r);
   } else if (piece.movementType === "flying") {
     for (let dr = -range; dr <= range; dr++)
       for (let dc = -range; dc <= range; dc++) {

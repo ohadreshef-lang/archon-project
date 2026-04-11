@@ -6,57 +6,69 @@ const uid = () => `p${++idCounter}`;
 
 /**
  * Returns the initial 9x9 board with all pieces in starting positions.
- * Light side: rows 7–8 (bottom), Dark side: rows 0–1 (top).
+ * Light side: cols 0–1 (left).  Wizard at col 0 row 4 = A5 power point.
+ * Dark side:  cols 7–8 (right). Sorceress at col 8 row 4 = I5 power point.
  */
 export function createInitialBoard(): (BoardPiece | null)[][] {
   const board: (BoardPiece | null)[][] = Array.from({ length: 9 }, () =>
     Array(9).fill(null)
   );
 
-  const place = (type: Parameters<typeof createPiece>[0], side: Parameters<typeof createPiece>[1], col: number, row: number) => {
+  const place = (
+    type: Parameters<typeof createPiece>[0],
+    side: Parameters<typeof createPiece>[1],
+    col: number,
+    row: number,
+  ) => {
     const piece = createPiece(type, side, uid());
     board[row][col] = { ...piece, col, row };
   };
 
-  // --- LIGHT SIDE (bottom two rows) ---
-  // Back row (row 8): Valkyrie, Archer, Golem, Unicorn, Wizard, Unicorn, Golem, Archer, Valkyrie
-  //                   + Phoenix at col 3, Djinni at col 5 (displacing Unicorns? No — Wizard at col 4, flanked)
-  // Faithful to original layout:
+  // ── LIGHT SIDE — left two columns ──────────────────────────────────────
+  // Back column (col 0): mirrors original back row, Wizard at row 4 = A5 ✓
+  place("valkyrie", "light", 0, 0);
+  place("archer",   "light", 0, 1);
+  place("golem",    "light", 0, 2);
+  place("phoenix",  "light", 0, 3);
+  place("wizard",   "light", 0, 4); // A5 power point
+  place("djinni",   "light", 0, 5);
+  place("golem",    "light", 0, 6);
+  place("archer",   "light", 0, 7);
   place("valkyrie", "light", 0, 8);
-  place("archer",   "light", 1, 8);
-  place("golem",    "light", 2, 8);
-  place("phoenix",  "light", 3, 8);
-  place("wizard",   "light", 4, 8);
-  place("djinni",   "light", 5, 8);
-  place("golem",    "light", 6, 8);
-  place("archer",   "light", 7, 8);
-  place("valkyrie", "light", 8, 8);
 
-  // Second row from bottom (row 7): Unicorns flanking center, knights filling rest
+  // Front column (col 1): mirrors original front row
+  place("knight",  "light", 1, 0);
+  place("unicorn", "light", 1, 1);
+  place("knight",  "light", 1, 2);
+  place("knight",  "light", 1, 3);
+  place("knight",  "light", 1, 4);
+  place("knight",  "light", 1, 5);
+  place("knight",  "light", 1, 6);
   place("unicorn", "light", 1, 7);
-  place("unicorn", "light", 7, 7);
-  for (const col of [0, 2, 3, 4, 5, 6, 8]) {
-    place("knight", "light", col, 7);
-  }
+  place("knight",  "light", 1, 8);
 
-  // --- DARK SIDE (top two rows) ---
-  // Back row (row 0)
-  place("banshee",     "dark", 0, 0);
-  place("manticore",   "dark", 1, 0);
-  place("troll",       "dark", 2, 0);
-  place("shapeshifter","dark", 3, 0);
-  place("sorceress",   "dark", 4, 0);
-  place("dragon",      "dark", 5, 0);
-  place("troll",       "dark", 6, 0);
-  place("manticore",   "dark", 7, 0);
-  place("banshee",     "dark", 8, 0);
+  // ── DARK SIDE — right two columns ──────────────────────────────────────
+  // Back column (col 8): Sorceress at row 4 = I5 ✓
+  place("banshee",      "dark", 8, 0);
+  place("manticore",    "dark", 8, 1);
+  place("troll",        "dark", 8, 2);
+  place("shapeshifter", "dark", 8, 3);
+  place("sorceress",    "dark", 8, 4); // I5 power point
+  place("dragon",       "dark", 8, 5);
+  place("troll",        "dark", 8, 6);
+  place("manticore",    "dark", 8, 7);
+  place("banshee",      "dark", 8, 8);
 
-  // Second row from top (row 1)
-  place("basilisk", "dark", 1, 1);
+  // Front column (col 7)
+  place("goblin",   "dark", 7, 0);
   place("basilisk", "dark", 7, 1);
-  for (const col of [0, 2, 3, 4, 5, 6, 8]) {
-    place("goblin", "dark", col, 1);
-  }
+  place("goblin",   "dark", 7, 2);
+  place("goblin",   "dark", 7, 3);
+  place("goblin",   "dark", 7, 4);
+  place("goblin",   "dark", 7, 5);
+  place("goblin",   "dark", 7, 6);
+  place("basilisk", "dark", 7, 7);
+  place("goblin",   "dark", 7, 8);
 
   return board;
 }

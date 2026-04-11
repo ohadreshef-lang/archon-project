@@ -4,8 +4,12 @@ import type { BoardPiece, CombatState } from "@/lib/types";
 
 const ARENA_W = 576;
 const ARENA_H = 576;
+const UNIT_RADIUS = 26;
+const BAR_W = 84;
 
-// Modern arena palette
+// Barrier definition for collision
+interface BarrierRect { x: number; y: number; w: number; h: number; }
+
 const BARRIER_COLORS = [0x374151, 0x4b5563, 0x6b7280];
 const PROJ_LIGHT = 0x818cf8;
 const PROJ_DARK  = 0xfb7185;
@@ -16,6 +20,7 @@ interface CombatUnit {
   label: Phaser.GameObjects.Text;
   hpBg: Phaser.GameObjects.Rectangle;
   hpBar: Phaser.GameObjects.Rectangle;
+  hpText: Phaser.GameObjects.Text;
   hp: number;
   maxHp: number;
   lastFired: number;
@@ -39,12 +44,23 @@ export class CombatScene extends Phaser.Scene {
   private attacker!: CombatUnit;
   private defender!: CombatUnit;
   private projectiles!: Phaser.GameObjects.Group;
-  private barriers: Phaser.GameObjects.Rectangle[] = [];
+  private barrierRects: BarrierRect[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private fireKey!: Phaser.Input.Keyboard.Key;
   private onCombatEnd?: (attackerHp: number, defenderHp: number) => void;
   private ended = false;
   private isLocalAttacker = true;
+
+  // Touch controls
+  private joystickBase?: Phaser.GameObjects.Arc;
+  private joystickThumb?: Phaser.GameObjects.Arc;
+  private joystickBaseX = 90;
+  private joystickBaseY = ARENA_H - 90;
+  private joystickPointerId = -1;
+  private joystickDx = 0;
+  private joystickDy = 0;
+  private fireBtnPointerId = -1;
+  private touchFireTriggered = false;
 
   constructor() {
     super({ key: "CombatScene" });
@@ -54,37 +70,64 @@ export class CombatScene extends Phaser.Scene {
     this.ended = false;
     this.onCombatEnd = data.onCombatEnd;
     this.isLocalAttacker = data.isLocalAttacker;
+    this.joystickPointerId = -1;
+    this.fireBtnPointerId  = -1;
+    this.touchFireTriggered = false;
 
     const lumStep = data.combatState.squareLuminance;
     this.cameras.main.setBackgroundColor(this.arenaBackground(lumStep));
 
     this.projectiles = this.add.group();
+    this.barrierRects = [];
     this.createBarriers();
     this.drawArenaFrame(lumStep);
 
     const aBonus = this.hpBonus(data.attacker.side, lumStep);
     const dBonus = this.hpBonus(data.defender.side, lumStep);
 
-    this.attacker = this.createUnit(data.attacker, 80,          ARENA_H / 2, aBonus, data.isLocalAttacker);
-    this.defender = this.createUnit(data.defender, ARENA_W - 80, ARENA_H / 2, dBonus, !data.isLocalAttacker);
+    this.attacker = this.createUnit(data.attacker, 80,            ARENA_H / 2, aBonus,  data.isLocalAttacker);
+    this.defender = this.createUnit(data.defender, ARENA_W - 80,  ARENA_H / 2, dBonus, !data.isLocalAttacker);
 
     this.localUnit  = data.isLocalAttacker ? this.attacker : this.defender;
     this.remoteUnit = data.isLocalAttacker ? this.defender : this.attacker;
     this.remoteUnit.aiTarget = this.localUnit;
 
-    this.cursors  = this.input.keyboard!.createCursorKeys();
-    this.fireKey  = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.cursors = this.input.keyboard!.createCursorKeys();
+    this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    // Title card
-    const title = this.add.text(ARENA_W / 2, 28, "⚔  BATTLE  ⚔", {
-      fontSize: "18px", fontFamily: "Inter, sans-serif", fontStyle: "bold", color: "#f59e0b",
-    }).setOrigin(0.5);
-    this.tweens.add({ targets: title, alpha: { from: 0, to: 1 }, duration: 400 });
+    // Add WASD
+    this.input.keyboard!.addKey("W");
+    this.input.keyboard!.addKey("A");
+    this.input.keyboard!.addKey("S");
+    this.input.keyboard!.addKey("D");
+
+    // Piece names at top corners
+    const localPiece  = this.localUnit.piece;
+    const remotePiece = this.remoteUnit.piece;
+    const localColor  = localPiece.side  === "light" ? "#818cf8" : "#fb7185";
+    const remoteColor = remotePiece.side === "light" ? "#818cf8" : "#fb7185";
+
+    this.add.text(16, 10,
+      `${PIECE_LABEL[localPiece.type] ?? "?"} ${localPiece.type.charAt(0).toUpperCase() + localPiece.type.slice(1)}`,
+      { fontSize: "13px", fontFamily: "Inter,sans-serif", color: localColor }
+    ).setDepth(5);
+
+    this.add.text(ARENA_W - 16, 10,
+      `${PIECE_LABEL[remotePiece.type] ?? "?"} ${remotePiece.type.charAt(0).toUpperCase() + remotePiece.type.slice(1)}`,
+      { fontSize: "13px", fontFamily: "Inter,sans-serif", color: remoteColor }
+    ).setOrigin(1, 0).setDepth(5);
+
+    // Entrance flash
+    this.cameras.main.flash(300, 0, 0, 0, false);
+
+    // Touch controls
+    this.setupTouchControls();
   }
 
+  // ── Arena visuals ──────────────────────────────────────────────────────
+
   private arenaBackground(step: number): number {
-    const bases = [0x050505, 0x050510, 0x10051a, 0x051008, 0x05100f, 0x1a1a1a];
-    return bases[step] ?? 0x0a0a0a;
+    return [0x050505, 0x050510, 0x10051a, 0x051008, 0x05100f, 0x1a1a1a][step] ?? 0x0a0a0a;
   }
 
   private hpBonus(side: "light" | "dark", step: number): number {
@@ -93,11 +136,9 @@ export class CombatScene extends Phaser.Scene {
 
   private drawArenaFrame(step: number) {
     const g = this.add.graphics();
-    // Outer glow border
     const borderColor = step >= 3 ? 0x818cf8 : 0xfb7185;
     g.lineStyle(3, borderColor, 0.5);
     g.strokeRect(4, 4, ARENA_W - 8, ARENA_H - 8);
-    // Corner accents
     const corners: [number, number][] = [[0,0],[ARENA_W,0],[0,ARENA_H],[ARENA_W,ARENA_H]];
     for (const [cx, cy] of corners) {
       g.lineStyle(2, 0xf59e0b, 0.8);
@@ -106,46 +147,144 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private createBarriers() {
-    const positions = [
-      [120, 140], [240, 100], [360, 140], [460, 200],
-      [120, 430], [240, 470], [360, 430], [460, 380],
+    const defs: [number, number, number, number][] = [
+      [120, 160, 80, 22], [260, 110, 70, 20], [380, 160, 80, 22], [470, 210, 60, 20],
+      [120, 416, 80, 22], [260, 466, 70, 20], [380, 416, 80, 22], [470, 366, 60, 20],
     ];
-    for (let i = 0; i < positions.length; i++) {
-      const [x, y] = positions[i];
-      const w = 60 + (i % 3) * 20;
-      const h = 20 + (i % 2) * 14;
+    for (let i = 0; i < defs.length; i++) {
+      const [x, y, w, h] = defs[i];
+      this.barrierRects.push({ x, y, w, h });
       const color = BARRIER_COLORS[i % BARRIER_COLORS.length];
-      const b = this.add.rectangle(x, y, w, h, color);
-      b.setStrokeStyle(1, 0x6b7280, 0.5);
-      this.barriers.push(b);
+      const rect = this.add.rectangle(x, y, w, h, color);
+      rect.setStrokeStyle(1, 0x6b7280, 0.5);
     }
   }
+
+  // ── Unit creation ──────────────────────────────────────────────────────
 
   private createUnit(piece: BoardPiece, x: number, y: number, hpBonus: number, isLocal: boolean): CombatUnit {
     const hp = Math.min(piece.hp + hpBonus, piece.maxHp + hpBonus);
     const isLight = piece.side === "light";
-    const fillColor = isLight ? 0x3730a3 : 0x9f1239;
+    const fillColor   = isLight ? 0x3730a3 : 0x9f1239;
     const strokeColor = isLight ? 0x818cf8 : 0xfb7185;
 
-    const circle = this.add.arc(x, y, 24, 0, 360, false, fillColor);
-    circle.setStrokeStyle(2, strokeColor);
+    const circle = this.add.arc(x, y, UNIT_RADIUS, 0, 360, false, fillColor);
+    circle.setStrokeStyle(2.5, strokeColor);
 
     const label = this.add.text(x, y + 1, PIECE_LABEL[piece.type] ?? "?", {
-      fontSize: "22px", fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
+      fontSize: "24px",
+      fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
     }).setOrigin(0.5);
 
-    // HP bar
-    const barW = 60;
-    const hpBg = this.add.rectangle(x, y - 38, barW, 8, 0x1f2937).setStrokeStyle(1, 0x374151);
-    const hpBar = this.add.rectangle(x - barW / 2, y - 38, barW, 8, isLight ? 0x818cf8 : 0xfb7185).setOrigin(0, 0.5);
+    // "YOU" / "ENEMY" tag
+    const tagText = isLocal ? "YOU" : "ENEMY";
+    const tagColor = isLocal ? (isLight ? "#818cf8" : "#fb7185") : "#6b7280";
+    this.add.text(x, y - 56, tagText, {
+      fontSize: "10px", fontFamily: "Inter,sans-serif",
+      fontStyle: "bold", color: tagColor,
+    }).setOrigin(0.5).setName(`tag_${isLocal ? "local" : "remote"}`);
 
-    // Name label
-    this.add.text(x, y - 50, piece.type.toUpperCase(), {
-      fontSize: "9px", fontFamily: "Inter, sans-serif", color: isLight ? "#818cf8" : "#fb7185",
+    // HP bar (color-coded, 84px wide)
+    const barColor = this.hpColor(1);
+    const hpBg  = this.add.rectangle(x, y - 40, BAR_W, 9, 0x1f2937).setStrokeStyle(1, 0x374151);
+    const hpBar = this.add.rectangle(x - BAR_W / 2, y - 40, BAR_W, 9, barColor).setOrigin(0, 0.5);
+
+    // Numeric HP text
+    const hpText = this.add.text(x, y - 40, `${hp}/${hp}`, {
+      fontSize: "9px", fontFamily: "Inter,sans-serif", color: "#9ca3af",
     }).setOrigin(0.5);
 
-    return { piece, circle, label, hpBg, hpBar, hp, maxHp: hp, lastFired: 0, vx: 0, vy: 0, isLocal };
+    // Entrance animation
+    circle.setAlpha(0).setScale(0.3);
+    label.setAlpha(0).setScale(0.3);
+    this.tweens.add({ targets: [circle, label], alpha: 1, scaleX: 1, scaleY: 1, duration: 350, ease: "Back.easeOut" });
+
+    return { piece, circle, label, hpBg, hpBar, hpText, hp, maxHp: hp, lastFired: 0, vx: 0, vy: 0, isLocal };
   }
+
+  private hpColor(pct: number): number {
+    if (pct > 0.6) return 0x22c55e;
+    if (pct > 0.3) return 0xf59e0b;
+    return 0xef4444;
+  }
+
+  // ── Touch controls ─────────────────────────────────────────────────────
+
+  private setupTouchControls() {
+    const isTouchDevice = this.sys.game.device.input.touch;
+    if (!isTouchDevice) return;
+
+    this.input.addPointer(1); // support 2 simultaneous touches
+
+    const jx = this.joystickBaseX;
+    const jy = this.joystickBaseY;
+
+    // Joystick base
+    this.joystickBase = this.add.arc(jx, jy, 52, 0, 360, false, 0xffffff, 0.1)
+      .setStrokeStyle(2, 0xffffff, 0.25).setDepth(20);
+
+    // Joystick thumb
+    this.joystickThumb = this.add.arc(jx, jy, 24, 0, 360, false, 0xffffff, 0.35)
+      .setDepth(21);
+
+    // Fire button
+    const fireX = ARENA_W - 90;
+    const fireY = ARENA_H - 90;
+    const fireBtn = this.add.arc(fireX, fireY, 46, 0, 360, false, 0xfb7185, 0.25)
+      .setStrokeStyle(2, 0xfb7185, 0.5).setDepth(20);
+    this.add.text(fireX, fireY, "⚡", { fontSize: "28px" }).setOrigin(0.5).setDepth(21);
+
+    // Pulsing hint
+    this.tweens.add({
+      targets: fireBtn, scaleX: 1.12, scaleY: 1.12,
+      alpha: { from: 0.25, to: 0.5 },
+      duration: 700, yoyo: true, repeat: -1,
+    });
+
+    // Touch events
+    this.input.on("pointerdown", (ptr: Phaser.Input.Pointer) => {
+      if (ptr.x < ARENA_W * 0.6 && this.joystickPointerId === -1) {
+        // Left zone → joystick
+        this.joystickPointerId = ptr.id;
+        this.joystickBaseX = ptr.x;
+        this.joystickBaseY = ptr.y;
+        this.joystickBase?.setPosition(ptr.x, ptr.y);
+        this.joystickThumb?.setPosition(ptr.x, ptr.y);
+      } else if (ptr.x >= ARENA_W * 0.6 && this.fireBtnPointerId === -1) {
+        // Right zone → fire
+        this.fireBtnPointerId = ptr.id;
+        this.touchFireTriggered = true;
+      }
+    });
+
+    this.input.on("pointermove", (ptr: Phaser.Input.Pointer) => {
+      if (ptr.id !== this.joystickPointerId) return;
+      const dx = ptr.x - this.joystickBaseX;
+      const dy = ptr.y - this.joystickBaseY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const maxR = 48;
+      const clampedDist = Math.min(dist, maxR);
+      const angle = Math.atan2(dy, dx);
+      const tx = this.joystickBaseX + Math.cos(angle) * clampedDist;
+      const ty = this.joystickBaseY + Math.sin(angle) * clampedDist;
+      this.joystickThumb?.setPosition(tx, ty);
+      this.joystickDx = dist > 8 ? (dx / dist) : 0;
+      this.joystickDy = dist > 8 ? (dy / dist) : 0;
+    });
+
+    this.input.on("pointerup", (ptr: Phaser.Input.Pointer) => {
+      if (ptr.id === this.joystickPointerId) {
+        this.joystickPointerId = -1;
+        this.joystickDx = 0; this.joystickDy = 0;
+        this.joystickThumb?.setPosition(this.joystickBaseX, this.joystickBaseY);
+      }
+      if (ptr.id === this.fireBtnPointerId) {
+        this.fireBtnPointerId = -1;
+      }
+    });
+  }
+
+  // ── Update loop ────────────────────────────────────────────────────────
 
   update(time: number) {
     if (this.ended) return;
@@ -159,15 +298,38 @@ export class CombatScene extends Phaser.Scene {
 
   private handleLocalInput(time: number) {
     const u = this.localUnit;
-    const speed = 180;
-    u.vx = 0; u.vy = 0;
-    if (this.cursors.left.isDown)  u.vx = -speed;
-    if (this.cursors.right.isDown) u.vx =  speed;
-    if (this.cursors.up.isDown)    u.vy = -speed;
-    if (this.cursors.down.isDown)  u.vy =  speed;
+    const speed = 190;
+    let dx = 0, dy = 0;
 
-    if (Phaser.Input.Keyboard.JustDown(this.fireKey)) {
-      const cooldown = 1000 / u.piece.attackSpeed;
+    // Keyboard (always active)
+    const wKey = this.input.keyboard!.addKey("W");
+    const aKey = this.input.keyboard!.addKey("A");
+    const sKey = this.input.keyboard!.addKey("S");
+    const dKey = this.input.keyboard!.addKey("D");
+    if (this.cursors.left.isDown  || aKey.isDown) dx -= 1;
+    if (this.cursors.right.isDown || dKey.isDown) dx += 1;
+    if (this.cursors.up.isDown    || wKey.isDown) dy -= 1;
+    if (this.cursors.down.isDown  || sKey.isDown) dy += 1;
+
+    // Touch joystick overrides if active
+    if (this.joystickPointerId !== -1) {
+      dx = this.joystickDx;
+      dy = this.joystickDy;
+    }
+
+    // Normalize diagonals
+    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+    u.vx = dx * speed;
+    u.vy = dy * speed;
+
+    // Fire — keyboard
+    const cooldown = 1000 / u.piece.attackSpeed;
+    if (Phaser.Input.Keyboard.JustDown(this.fireKey) && time - u.lastFired > cooldown) {
+      this.fireProjectile(u, u === this.attacker ? this.defender : this.attacker, time);
+    }
+    // Fire — touch
+    if (this.touchFireTriggered) {
+      this.touchFireTriggered = false;
       if (time - u.lastFired > cooldown) {
         this.fireProjectile(u, u === this.attacker ? this.defender : this.attacker, time);
       }
@@ -180,10 +342,9 @@ export class CombatScene extends Phaser.Scene {
     const dx = target.circle.x - u.circle.x;
     const dy = target.circle.y - u.circle.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const speed = 120;
-
-    // Move toward target but keep distance ~150px
+    const speed = 130;
     const idealDist = 150;
+
     if (dist > idealDist + 10) {
       u.vx = (dx / dist) * speed;
       u.vy = (dy / dist) * speed;
@@ -202,24 +363,45 @@ export class CombatScene extends Phaser.Scene {
 
   private moveUnit(u: CombatUnit) {
     const dt = this.game.loop.delta / 1000;
-    const nx = Phaser.Math.Clamp(u.circle.x + u.vx * dt, 28, ARENA_W - 28);
-    const ny = Phaser.Math.Clamp(u.circle.y + u.vy * dt, 28, ARENA_H - 28);
+    let nx = u.circle.x + u.vx * dt;
+    let ny = u.circle.y + u.vy * dt;
+
+    // Clamp to arena bounds
+    nx = Phaser.Math.Clamp(nx, UNIT_RADIUS + 4, ARENA_W - UNIT_RADIUS - 4);
+    ny = Phaser.Math.Clamp(ny, UNIT_RADIUS + 4, ARENA_H - UNIT_RADIUS - 4);
+
+    // Barrier collision — push unit out of overlapping barriers
+    for (const b of this.barrierRects) {
+      const halfW = b.w / 2 + UNIT_RADIUS;
+      const halfH = b.h / 2 + UNIT_RADIUS;
+      const overlapX = Math.abs(nx - b.x) < halfW;
+      const overlapY = Math.abs(ny - b.y) < halfH;
+      if (overlapX && overlapY) {
+        // Push out on shortest axis
+        const pushX = halfW - Math.abs(nx - b.x);
+        const pushY = halfH - Math.abs(ny - b.y);
+        if (pushX < pushY) nx += nx < b.x ? -pushX : pushX;
+        else                ny += ny < b.y ? -pushY : pushY;
+      }
+    }
+
     u.circle.setPosition(nx, ny);
-    u.label.setPosition(nx, ny);
-    u.hpBg.setPosition(nx, ny - 38);
-    u.hpBar.setPosition(nx - 30, ny - 38);
+    u.label.setPosition(nx, ny + 1);
+    u.hpBg.setPosition(nx, ny - 40);
+    u.hpBar.setPosition(nx - BAR_W / 2, ny - 40);
+    u.hpText.setPosition(nx, ny - 40);
   }
 
   private fireProjectile(from: CombatUnit, to: CombatUnit, time: number) {
     from.lastFired = time;
     const angle = Phaser.Math.Angle.Between(from.circle.x, from.circle.y, to.circle.x, to.circle.y);
-    const speed = from.piece.projectileSpeed || 280;
+    const speed = from.piece.projectileSpeed || 300;
     const color = from.piece.side === "light" ? PROJ_LIGHT : PROJ_DARK;
 
-    const proj = this.add.circle(from.circle.x, from.circle.y, 5, color);
-    proj.setData("vx", Math.cos(angle) * speed);
-    proj.setData("vy", Math.sin(angle) * speed);
-    proj.setData("owner", from === this.attacker ? "attacker" : "defender");
+    const proj = this.add.arc(from.circle.x, from.circle.y, 5, 0, 360, false, color);
+    proj.setData("vx",     Math.cos(angle) * speed);
+    proj.setData("vy",     Math.sin(angle) * speed);
+    proj.setData("owner",  from === this.attacker ? "attacker" : "defender");
     proj.setData("damage", 2);
     this.projectiles.add(proj);
   }
@@ -231,26 +413,93 @@ export class CombatScene extends Phaser.Scene {
       proj.x += proj.getData("vx") * dt;
       proj.y += proj.getData("vy") * dt;
 
+      // Out of bounds
       if (proj.x < 0 || proj.x > ARENA_W || proj.y < 0 || proj.y > ARENA_H) {
         proj.destroy(); continue;
       }
-      const owner = proj.getData("owner");
+
+      // Barrier collision
+      let hitBarrier = false;
+      for (const b of this.barrierRects) {
+        if (Math.abs(proj.x - b.x) < b.w / 2 + 5 && Math.abs(proj.y - b.y) < b.h / 2 + 5) {
+          hitBarrier = true; break;
+        }
+      }
+      if (hitBarrier) { proj.destroy(); continue; }
+
+      // Unit hit
+      const owner  = proj.getData("owner");
       const target = owner === "attacker" ? this.defender : this.attacker;
-      if (Phaser.Math.Distance.Between(proj.x, proj.y, target.circle.x, target.circle.y) < 26) {
-        target.hp = Math.max(0, target.hp - proj.getData("damage"));
-        const pct = target.hp / target.maxHp;
-        target.hpBar.width = 60 * pct;
-        // Flash effect
-        this.tweens.add({ targets: target.circle, alpha: 0.3, duration: 60, yoyo: true });
+      if (Phaser.Math.Distance.Between(proj.x, proj.y, target.circle.x, target.circle.y) < UNIT_RADIUS + 6) {
+        const dmg = proj.getData("damage") as number;
+        this.applyDamage(target, dmg);
         proj.destroy();
       }
+    }
+  }
+
+  private applyDamage(target: CombatUnit, dmg: number) {
+    target.hp = Math.max(0, target.hp - dmg);
+    const pct = target.hp / target.maxHp;
+
+    // Update HP bar width + color
+    target.hpBar.width = BAR_W * pct;
+    target.hpBar.fillColor = this.hpColor(pct);
+    target.hpText.setText(`${target.hp}/${target.maxHp}`);
+
+    // Red pulse when critically low
+    if (pct < 0.3) {
+      this.tweens.add({
+        targets: target.hpBar, alpha: { from: 0.4, to: 1 }, duration: 250, yoyo: true,
+      });
+    }
+
+    // Camera shake
+    this.cameras.main.shake(100, 0.010);
+
+    // Hit flash
+    this.tweens.add({ targets: target.circle, alpha: 0.15, duration: 70, yoyo: true });
+
+    // Floating damage number
+    const floatText = this.add.text(
+      target.circle.x + Phaser.Math.Between(-12, 12),
+      target.circle.y - 10,
+      `-${dmg}`,
+      { fontSize: "18px", fontStyle: "bold", fontFamily: "Inter,sans-serif", color: "#fbbf24" }
+    ).setOrigin(0.5).setDepth(30);
+    this.tweens.add({
+      targets: floatText,
+      y: floatText.y - 44, alpha: 0, scaleX: 1.3, scaleY: 1.3,
+      duration: 650, ease: "Quad.easeOut",
+      onComplete: () => floatText.destroy(),
+    });
+
+    // Hit burst (4 small sparks)
+    const burstColor = target.piece.side === "light" ? PROJ_DARK : PROJ_LIGHT;
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const spark = this.add.arc(target.circle.x, target.circle.y, 4, 0, 360, false, burstColor)
+        .setDepth(29);
+      this.tweens.add({
+        targets: spark,
+        x: target.circle.x + Math.cos(angle) * 28,
+        y: target.circle.y + Math.sin(angle) * 28,
+        alpha: 0, scaleX: 0.2, scaleY: 0.2,
+        duration: 280, ease: "Quad.easeOut",
+        onComplete: () => spark.destroy(),
+      });
     }
   }
 
   private checkEnd() {
     if (this.attacker.hp <= 0 || this.defender.hp <= 0) {
       this.ended = true;
-      this.time.delayedCall(600, () => {
+      // Big flash on kill
+      const winner = this.attacker.hp > 0 ? this.attacker : this.defender;
+      const winColor = winner.piece.side === "light" ? 0x818cf8 : 0xfb7185;
+      this.cameras.main.flash(400, (winColor >> 16) & 0xff, (winColor >> 8) & 0xff, winColor & 0xff, false);
+
+      this.time.delayedCall(700, () => {
         this.onCombatEnd?.(this.attacker.hp, this.defender.hp);
         this.scene.stop();
       });

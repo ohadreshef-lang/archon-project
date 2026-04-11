@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { BOARD_SIZE, TILE_SIZE, POWER_POINTS, LUMINANCE_COLORS, OSCILLATING_SQUARES } from "@/lib/constants";
+import { BOARD_SIZE, TILE_SIZE, POWER_POINTS, LUMINANCE_COLORS, OSCILLATING_SQUARES, LIGHT_HOME, DARK_HOME } from "@/lib/constants";
 import type { BoardPiece, CombatState, GameState } from "@/lib/types";
 
 // Modern color palette
@@ -63,8 +63,13 @@ export class BoardScene extends Phaser.Scene {
       for (let col = 0; col < BOARD_SIZE; col++) {
         const x = col * TILE_SIZE;
         const y = row * TILE_SIZE;
-        const isOscillating = OSCILLATING_SQUARES.has(row * BOARD_SIZE + col);
-        const color = isOscillating ? OSCILLATING_COLORS[3] : (col + row) % 2 === 0 ? LIGHT_TILE : DARK_TILE;
+        const isLightHome = col === LIGHT_HOME[0] && row === LIGHT_HOME[1];
+        const isDarkHome  = col === DARK_HOME[0]  && row === DARK_HOME[1];
+        const isOscillating = !isLightHome && !isDarkHome && OSCILLATING_SQUARES.has(row * BOARD_SIZE + col);
+        const color = isLightHome ? LIGHT_TILE
+          : isDarkHome  ? DARK_TILE
+          : isOscillating ? OSCILLATING_COLORS[3]
+          : (col + row) % 2 === 0 ? LIGHT_TILE : DARK_TILE;
         this.tileColors[row][col] = color;
 
         const g = this.add.graphics();
@@ -123,7 +128,9 @@ export class BoardScene extends Phaser.Scene {
     const color = OSCILLATING_COLORS[step];
     for (let row = 0; row < BOARD_SIZE; row++) {
       for (let col = 0; col < BOARD_SIZE; col++) {
-        if (OSCILLATING_SQUARES.has(row * BOARD_SIZE + col)) {
+        const isHome = (col === LIGHT_HOME[0] && row === LIGHT_HOME[1]) ||
+                       (col === DARK_HOME[0]  && row === DARK_HOME[1]);
+        if (!isHome && OSCILLATING_SQUARES.has(row * BOARD_SIZE + col)) {
           this.tileColors[row][col] = color;
           this.drawTile(this.tiles[row][col], col * TILE_SIZE, row * TILE_SIZE, color, false);
         }
@@ -238,7 +245,9 @@ export class BoardScene extends Phaser.Scene {
     if (piece.movementType === "teleport") {
       for (let r = 0; r < BOARD_SIZE; r++)
         for (let c = 0; c < BOARD_SIZE; c++)
-          if (r !== piece.row || c !== piece.col) addSquare(c, r);
+          if ((r !== piece.row || c !== piece.col) &&
+              Math.max(Math.abs(r - piece.row), Math.abs(c - piece.col)) <= range)
+            addSquare(c, r);
     } else if (piece.movementType === "flying") {
       for (let dr = -range; dr <= range; dr++) {
         for (let dc = -range; dc <= range; dc++) {
