@@ -14,6 +14,7 @@ export class BoardScene extends Phaser.Scene {
   private selectedPieceId: string | null = null;
   private validMoves: Set<string> = new Set();
   private gameState: GameState | null = null;
+  private pendingState: GameState | null = null;
   private onMoveFn?: (from: [number, number], to: [number, number]) => void;
   private onSelectSpellFn?: () => void;
 
@@ -24,6 +25,11 @@ export class BoardScene extends Phaser.Scene {
   create() {
     this.drawBoard();
     this.input.on("pointerdown", this.handleClick, this);
+    // Apply any state that arrived before the scene was ready
+    if (this.pendingState) {
+      this.applyState(this.pendingState);
+      this.pendingState = null;
+    }
   }
 
   private drawBoard() {
@@ -62,6 +68,15 @@ export class BoardScene extends Phaser.Scene {
   }
 
   updateState(state: GameState) {
+    if (this.tiles.length === 0) {
+      // Scene not ready yet — store and apply in create()
+      this.pendingState = state;
+      return;
+    }
+    this.applyState(state);
+  }
+
+  private applyState(state: GameState) {
     this.gameState = state;
     this.updateLuminance(state.luminanceStep);
     this.renderPieces(state.board);

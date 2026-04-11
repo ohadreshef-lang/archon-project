@@ -39,11 +39,8 @@ export default function GameCanvas({ gameState, onMove }: Props) {
       });
 
       gameRef.current = game;
-
-      boardScene.events.once("create", () => {
-        boardScene.setMoveHandler(onMove);
-        boardScene.updateState(gameState);
-      });
+      boardScene.setMoveHandler(onMove);
+      boardScene.updateState(gameState);
     })();
 
     return () => {
@@ -61,7 +58,7 @@ export default function GameCanvas({ gameState, onMove }: Props) {
     <div
       ref={containerRef}
       className="border-4 border-yellow-500 shadow-[0_0_30px_rgba(255,200,0,0.4)]"
-      style={{ imageRendering: "pixelated" }}
+      style={{ width: 9 * 64, height: 9 * 64, imageRendering: "pixelated" }}
     />
   );
 }
