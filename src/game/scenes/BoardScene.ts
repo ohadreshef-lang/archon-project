@@ -90,14 +90,12 @@ export class BoardScene extends Phaser.Scene {
     const cx = col * TILE_SIZE + TILE_SIZE / 2;
     const cy = row * TILE_SIZE + TILE_SIZE / 2;
     const ring = this.add.graphics();
-    ring.lineStyle(2, POWER_COLOR, 0.8);
-    ring.strokeCircle(cx, cy, 22);
+    ring.lineStyle(1.5, POWER_COLOR, 0.5);
+    ring.strokeCircle(cx, cy, 20);
     this.tweens.add({
       targets: ring,
-      alpha: { from: 0.3, to: 1 },
-      scaleX: { from: 0.9, to: 1.1 },
-      scaleY: { from: 0.9, to: 1.1 },
-      duration: 900,
+      alpha: { from: 0.35, to: 0.65 },
+      duration: 2800,
       yoyo: true,
       repeat: -1,
       ease: "Sine.easeInOut",
