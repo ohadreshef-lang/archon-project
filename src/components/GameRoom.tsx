@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import usePartySocket from "partysocket/react";
 import GameCanvas from "./GameCanvas";
 import type { BoardPiece, GameState, NetworkMessage, Side } from "@/lib/types";
 import { createInitialBoard } from "@/lib/initialBoard";
 import { PARTYKIT_HOST } from "@/lib/constants";
+import { pickAIMove } from "@/lib/gameLogic";
 
 function createInitialState(): GameState {
   return {
@@ -25,23 +26,25 @@ function createInitialState(): GameState {
 interface Props {
   roomId: string;
   playerSide: Side;
+  vsAI?: boolean;
 }
 
-export default function GameRoom({ roomId, playerSide }: Props) {
+export default function GameRoom({ roomId, playerSide, vsAI = false }: Props) {
   const [gameState, setGameState] = useState<GameState>(createInitialState);
   // Keep a ref so callbacks always read latest state without stale closures
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
+  const aiSide: Side = playerSide === "light" ? "dark" : "light";
 
   const socket = usePartySocket({
     host: PARTYKIT_HOST,
-    room: roomId,
+    room: vsAI ? "__ai_unused__" : roomId, // AI mode doesn't use the socket
     onOpen(event) {
-      // Actively request current state on (re)connect so late-joining
-      // players don't get stuck on the initial board state.
+      if (vsAI) return;
       (event.target as WebSocket).send(JSON.stringify({ type: "REQUEST_SYNC" }));
     },
     onMessage(event) {
+      if (vsAI) return;
       const msg = JSON.parse(event.data) as NetworkMessage;
       if (msg.type === "SYNC" || msg.type === "MOVE") {
         setGameState(msg.payload as GameState);
@@ -49,25 +52,46 @@ export default function GameRoom({ roomId, playerSide }: Props) {
     },
   });
 
-  // Compute next state outside the updater so socket.send is never
-  // called as a side-effect inside React's pure updater function.
   const handleMove = useCallback((from: [number, number], to: [number, number]) => {
     const prev = gameStateRef.current;
     if (prev.currentTurn !== playerSide || prev.phase !== "strategy") return;
     const next = applyMove(prev, from, to);
     setGameState(next);
-    socket.send(JSON.stringify({ type: "MOVE", payload: next }));
-  }, [playerSide, socket]);
+    if (!vsAI) socket.send(JSON.stringify({ type: "MOVE", payload: next }));
+  }, [playerSide, socket, vsAI]);
 
   const handleCombatResult = useCallback((attackerHp: number, defenderHp: number) => {
     const prev = gameStateRef.current;
     if (prev.phase !== "combat" || !prev.combat) return;
     const next = applyCombatResult(prev, attackerHp, defenderHp);
     setGameState(next);
-    if (playerSide === prev.combat.attackerSide) {
+    if (!vsAI && playerSide === prev.combat.attackerSide) {
       socket.send(JSON.stringify({ type: "MOVE", payload: next }));
     }
-  }, [playerSide, socket]);
+  }, [playerSide, socket, vsAI]);
+
+  // AI turn: fires whenever it becomes the AI's turn in vs-AI mode
+  useEffect(() => {
+    if (!vsAI) return;
+    if (gameState.phase !== "strategy") return;
+    if (gameState.currentTurn !== aiSide) return;
+    if (gameState.winner) return;
+
+    const delay = 600 + Math.random() * 600; // 600–1200ms "think" time
+    const timer = setTimeout(() => {
+      const state = gameStateRef.current;
+      // Guard again inside timeout in case state changed
+      if (state.phase !== "strategy" || state.currentTurn !== aiSide || state.winner) return;
+      const move = pickAIMove(state.board, aiSide);
+      if (move) {
+        const next = applyMove(state, move.from, move.to);
+        setGameState(next);
+      }
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [vsAI, aiSide, gameState.phase, gameState.currentTurn, gameState.winner]);
+
 
   const isMyTurn = gameState.currentTurn === playerSide && gameState.phase === "strategy";
   const luminanceLabel = ["●●●●●●", "◐●●●●●", "◐◐●●●●", "◐◐◐●●●", "◐◐◐◐●●", "◐◐◐◐◐●"][gameState.luminanceStep] ?? "";
@@ -131,6 +155,8 @@ export default function GameRoom({ roomId, playerSide }: Props) {
             ? "Battle in progress — use arrow keys + space to fight"
             : isMyTurn
             ? "Your turn — click a piece to move, green = move, red = attack"
+            : vsAI
+            ? "AI is thinking…"
             : "Waiting for opponent…"}
         </p>
         <a

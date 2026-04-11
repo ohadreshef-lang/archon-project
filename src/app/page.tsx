@@ -30,7 +30,21 @@ export default function Home() {
       </div>
 
       {/* Cards */}
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-2xl">
+        {/* vs AI */}
+        <Link
+          href={`/room/${roomId}?side=light&ai=true`}
+          className="flex-1 group relative overflow-hidden rounded-2xl bg-emerald-950/50 border border-emerald-700/30 hover:border-emerald-500/60 p-6 transition-all hover:shadow-[0_0_30px_rgba(16,185,129,0.15)]"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-4 text-xl">🤖</div>
+            <h2 className="text-white font-semibold text-lg mb-1">vs AI</h2>
+            <p className="text-gray-400 text-xs leading-relaxed">Play solo as Light against an AI opponent. No opponent needed.</p>
+          </div>
+        </Link>
+
+        {/* New multiplayer game */}
         <Link
           href={`/room/${roomId}?side=light`}
           className="flex-1 group relative overflow-hidden rounded-2xl bg-indigo-950/60 border border-indigo-600/30 hover:border-indigo-400/60 p-6 transition-all hover:shadow-[0_0_30px_rgba(99,102,241,0.2)]"
@@ -43,6 +57,7 @@ export default function Home() {
           </div>
         </Link>
 
+        {/* Join multiplayer */}
         <div className="flex-1 rounded-2xl bg-rose-950/40 border border-rose-800/30 p-6">
           <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center mb-4 text-xl">⬛</div>
           <h2 className="text-white font-semibold text-lg mb-1">Join Game</h2>
