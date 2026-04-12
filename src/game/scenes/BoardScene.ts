@@ -10,24 +10,28 @@ const SELECT_COLOR = 0x3b82f6; // blue
 const MOVE_COLOR   = 0x22c55e; // emerald
 const ATTACK_COLOR = 0xef4444; // red (enemy valid move)
 
-const LIGHT_PIECE_BG = 0x3730a3; // indigo-700
-const DARK_PIECE_BG  = 0x9f1239; // rose-800
+const LIGHT_PIECE_BG   = 0x1e3a5f; // deep navy
+const LIGHT_PIECE_RIM  = 0x93c5fd; // blue-300 rim
+const DARK_PIECE_BG    = 0x3b0a1a; // deep crimson
+const DARK_PIECE_RIM   = 0xfca5a5; // red-300 rim
 
-// Dark checkerboard squares subtly shift from very dark → medium slate
-// as the luminance cycle progresses — no color hues, just brightness.
+// Oscillating squares span from LIGHT_TILE (step 0) → DARK_TILE (step 5)
+// so the board looks like a normal symmetric checkerboard at the extremes
+// and shows a consistent mid-grey pattern in between.
 const OSCILLATING_COLORS = [
-  0x0d1117, // step 0 — almost black
-  0x111827, // step 1 — gray-900
-  0x1a2235, // step 2 — dark slate
-  0x1f2937, // step 3 — gray-800 (DARK_TILE baseline)
-  0x273446, // step 4 — slate-700
-  0x334155, // step 5 — slate-600, slightly lighter
+  0xd1d5db, // step 0 — full light  (matches LIGHT_TILE)
+  0xa8b8c8, // step 1 — light-grey
+  0x7a8fa5, // step 2 — medium grey
+  0x4a5e75, // step 3 — medium dark
+  0x2d3f54, // step 4 — dark slate
+  0x1f2937, // step 5 — full dark   (matches DARK_TILE)
 ];
 
 interface PieceContainer {
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
+  glow: Phaser.GameObjects.Arc;
 }
 
 export class BoardScene extends Phaser.Scene {
@@ -68,7 +72,7 @@ export class BoardScene extends Phaser.Scene {
         const isOscillating = !isLightHome && !isDarkHome && OSCILLATING_SQUARES.has(row * BOARD_SIZE + col);
         const color = isLightHome ? LIGHT_TILE
           : isDarkHome  ? DARK_TILE
-          : isOscillating ? OSCILLATING_COLORS[3]
+          : isOscillating ? OSCILLATING_COLORS[0]
           : (col + row) % 2 === 0 ? LIGHT_TILE : DARK_TILE;
         this.tileColors[row][col] = color;
 
@@ -97,16 +101,66 @@ export class BoardScene extends Phaser.Scene {
   private addPowerPointGlow(col: number, row: number) {
     const cx = col * TILE_SIZE + TILE_SIZE / 2;
     const cy = row * TILE_SIZE + TILE_SIZE / 2;
+
+    // Outer soft halo
+    const halo = this.add.graphics();
+    halo.fillStyle(POWER_COLOR, 0.08);
+    halo.fillCircle(cx, cy, 28);
+    this.tweens.add({
+      targets: halo,
+      alpha: { from: 0.5, to: 1 },
+      scaleX: { from: 0.85, to: 1.15 },
+      scaleY: { from: 0.85, to: 1.15 },
+      duration: 1800,
+      yoyo: true, repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    // Mid ring — pulses in opposite phase
     const ring = this.add.graphics();
-    ring.lineStyle(1.5, POWER_COLOR, 0.5);
-    ring.strokeCircle(cx, cy, 20);
+    ring.lineStyle(2, POWER_COLOR, 0.7);
+    ring.strokeCircle(cx, cy, 18);
     this.tweens.add({
       targets: ring,
-      alpha: { from: 0.35, to: 0.65 },
-      duration: 2800,
-      yoyo: true,
-      repeat: -1,
+      alpha: { from: 0.4, to: 1.0 },
+      scaleX: { from: 0.9, to: 1.1 },
+      scaleY: { from: 0.9, to: 1.1 },
+      duration: 1800,
+      yoyo: true, repeat: -1,
       ease: "Sine.easeInOut",
+      delay: 900, // offset for ripple feel
+    });
+
+    // Inner bright dot
+    const dot = this.add.graphics();
+    dot.fillStyle(0xfef3c7, 1); // amber-100 core
+    dot.fillCircle(cx, cy, 4);
+    this.tweens.add({
+      targets: dot,
+      alpha: { from: 0.6, to: 1 },
+      scaleX: { from: 0.8, to: 1.2 },
+      scaleY: { from: 0.8, to: 1.2 },
+      duration: 900,
+      yoyo: true, repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    // Rotating 4-pointed star
+    const star = this.add.graphics();
+    star.fillStyle(POWER_COLOR, 0.9);
+    // Draw 4 diamond points
+    const sp = 12; // spike reach
+    const sw = 2.5;  // spike half-width
+    star.fillTriangle(cx, cy - sp, cx - sw, cy, cx + sw, cy); // up
+    star.fillTriangle(cx, cy + sp, cx - sw, cy, cx + sw, cy); // down
+    star.fillTriangle(cx - sp, cy, cx, cy - sw, cx, cy + sw); // left
+    star.fillTriangle(cx + sp, cy, cx, cy - sw, cx, cy + sw); // right
+    this.tweens.add({
+      targets: star,
+      angle: 360,
+      duration: 4000,
+      repeat: -1,
+      ease: "Linear",
     });
   }
 
@@ -153,7 +207,7 @@ export class BoardScene extends Phaser.Scene {
         const pc = this.pieceContainers.get(piece.id)!;
         const cx = col * TILE_SIZE + TILE_SIZE / 2;
         const cy = row * TILE_SIZE + TILE_SIZE / 2;
-        this.tweens.add({ targets: pc.container, x: cx, y: cy, duration: 150, ease: "Quad.easeOut" });
+        this.tweens.add({ targets: pc.container, x: cx, y: cy, duration: 350, ease: "Cubic.easeInOut" });
       }
     }
     for (const [id, pc] of this.pieceContainers) {
@@ -168,25 +222,49 @@ export class BoardScene extends Phaser.Scene {
   private createPieceContainer(piece: BoardPiece): PieceContainer {
     const cx = piece.col * TILE_SIZE + TILE_SIZE / 2;
     const cy = piece.row * TILE_SIZE + TILE_SIZE / 2;
-    const radius = 22;
-    const bgColor = piece.side === "light" ? LIGHT_PIECE_BG : DARK_PIECE_BG;
+    const radius = 26;
+    const isLight = piece.side === "light";
+    const bgColor  = isLight ? LIGHT_PIECE_BG  : DARK_PIECE_BG;
+    const rimColor = isLight ? LIGHT_PIECE_RIM : DARK_PIECE_RIM;
 
+    // Soft outer glow
+    const glow = this.add.arc(0, 0, radius + 6, 0, 360, false, rimColor, 0);
+    glow.setStrokeStyle(5, rimColor, 0.25);
+
+    // Main circle
     const bg = this.add.arc(0, 0, radius, 0, 360, false, bgColor);
-    bg.setStrokeStyle(2, piece.side === "light" ? 0x818cf8 : 0xfb7185, 1);
+    bg.setStrokeStyle(2.5, rimColor, 1);
+
+    // Inner highlight rim (top-left arc for 3-D feel)
+    const shine = this.add.graphics();
+    shine.lineStyle(1.5, 0xffffff, 0.18);
+    shine.beginPath();
+    shine.arc(0, -3, radius - 5, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(340));
+    shine.strokePath();
 
     const label = this.add.text(0, 1, PIECE_LABEL[piece.type] ?? "?", {
-      fontSize: "20px",
+      fontSize: "22px",
       fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
     }).setOrigin(0.5);
 
-    const container = this.add.container(cx, cy, [bg, label]);
+    const container = this.add.container(cx, cy, [glow, bg, shine, label]);
     container.setSize(radius * 2, radius * 2);
 
-    // Entrance animation
-    container.setAlpha(0).setScale(0.5);
-    this.tweens.add({ targets: container, alpha: 1, scaleX: 1, scaleY: 1, duration: 250, ease: "Back.easeOut" });
+    // Subtle glow pulse on idle
+    this.tweens.add({
+      targets: glow,
+      alpha: { from: 0.3, to: 0.8 },
+      duration: 2200,
+      yoyo: true, repeat: -1,
+      ease: "Sine.easeInOut",
+      delay: Math.random() * 1000,
+    });
 
-    return { container, bg, label };
+    // Entrance animation
+    container.setAlpha(0).setScale(0.4);
+    this.tweens.add({ targets: container, alpha: 1, scaleX: 1, scaleY: 1, duration: 300, ease: "Back.easeOut" });
+
+    return { container, bg, label, glow };
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
