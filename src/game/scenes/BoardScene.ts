@@ -99,39 +99,39 @@ export class BoardScene extends Phaser.Scene {
     const cx = col * TILE_SIZE + TILE_SIZE / 2;
     const cy = row * TILE_SIZE + TILE_SIZE / 2;
 
-    // Ambient ring (static, always visible)
-    const ring = this.add.graphics();
-    ring.lineStyle(1.5, POWER_COLOR, 0.45);
-    ring.strokeCircle(cx, cy, 16);
+    // Glow halo — alpha synced with scale for intensity effect
+    const glow = this.add.graphics();
+    glow.fillStyle(POWER_COLOR, 1);
+    glow.fillCircle(0, 0, 14);
+    glow.setPosition(cx, cy);
+    glow.setAlpha(0.18);
 
-    // Inner dot — heartbeat
+    // Core dot
     const dot = this.add.graphics();
-    dot.fillStyle(POWER_COLOR, 0.9);
-    dot.fillCircle(cx, cy, 5);
+    dot.fillStyle(POWER_COLOR, 1);
+    dot.fillCircle(0, 0, 5);
+    dot.setPosition(cx, cy);
 
-    // Heartbeat: two quick pulses then a long rest
-    // Beat 1 → rest briefly → Beat 2 → long pause → repeat
-    const beat = () => {
-      this.tweens.add({
-        targets: [dot, ring],
-        scaleX: 1.35, scaleY: 1.35,
-        duration: 200, ease: "Quad.easeOut",
-        yoyo: true,
-        onComplete: () => {
-          this.time.delayedCall(130, () => {
-            this.tweens.add({
-              targets: [dot, ring],
-              scaleX: 1.2, scaleY: 1.2,
-              duration: 160, ease: "Quad.easeOut",
-              yoyo: true,
-              onComplete: () => this.time.delayedCall(1800, beat),
-            });
-          });
-        },
-      });
-    };
-    // Stagger each power point so they don't all pulse simultaneously
-    this.time.delayedCall(Math.random() * 600, beat);
+    // Single looping pulse: scale 1.0 → 1.15 → 1.0, glow 0.18 → 0.55 → 0.18
+    // ~1 s duration, ease-in-out, infinite repeat
+    this.tweens.add({
+      targets: [dot, glow],
+      scaleX: 1.15,
+      scaleY: 1.15,
+      duration: 500,
+      ease: "Sine.easeInOut",
+      yoyo: true,
+      repeat: -1,
+    });
+
+    this.tweens.add({
+      targets: glow,
+      alpha: { from: 0.18, to: 0.55 },
+      duration: 500,
+      ease: "Sine.easeInOut",
+      yoyo: true,
+      repeat: -1,
+    });
   }
 
   updateState(state: GameState) {
