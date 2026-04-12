@@ -5,7 +5,7 @@ import usePartySocket from "partysocket/react";
 import GameCanvas from "./GameCanvas";
 import type { BoardPiece, GameState, NetworkMessage, Side } from "@/lib/types";
 import { createInitialBoard } from "@/lib/initialBoard";
-import { PARTYKIT_HOST } from "@/lib/constants";
+import { PARTYKIT_HOST, OSCILLATING_SQUARES, LIGHT_HOME, DARK_HOME } from "@/lib/constants";
 import { pickAIMove } from "@/lib/gameLogic";
 
 function createInitialState(): GameState {
@@ -185,6 +185,14 @@ function applyMove(state: GameState, from: [number, number], to: [number, number
 
   if (target && target.side !== piece.side) {
     phase = "combat";
+    const isLightHome = toCol === LIGHT_HOME[0] && toRow === LIGHT_HOME[1];
+    const isDarkHome  = toCol === DARK_HOME[0]  && toRow === DARK_HOME[1];
+    const sqType: "light" | "dark" | "oscillating" =
+      isLightHome ? "light" :
+      isDarkHome  ? "dark"  :
+      OSCILLATING_SQUARES.has(toRow * 9 + toCol) ? "oscillating" :
+      (toCol + toRow) % 2 === 0 ? "light" : "dark";
+
     combat = {
       attackerPieceId: piece.id,
       defenderPieceId: target.id,
@@ -192,6 +200,7 @@ function applyMove(state: GameState, from: [number, number], to: [number, number
       boardCol: toCol,
       boardRow: toRow,
       squareLuminance: state.luminanceStep,
+      squareType: sqType,
     };
   } else {
     board[toRow][toCol] = { ...piece, col: toCol, row: toRow };

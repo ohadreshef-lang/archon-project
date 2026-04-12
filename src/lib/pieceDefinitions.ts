@@ -21,7 +21,7 @@ const PIECE_DEFS: Record<PieceType, PieceDef> = {
     movementType: "flying", attackRange: 140, attackSpeed: 1.0, projectileSpeed: 260,
   },
   golem: {
-    type: "golem", side: "light", maxHp: 20, moveRange: 2,
+    type: "golem", side: "light", maxHp: 20, moveRange: 3, // spec: Ground (3)
     movementType: "ground", attackRange: 200, attackSpeed: 0.5, projectileSpeed: 200,
   },
   djinni: {
@@ -43,7 +43,7 @@ const PIECE_DEFS: Record<PieceType, PieceDef> = {
     movementType: "teleport", attackRange: 200, attackSpeed: 1.0, projectileSpeed: 300,
   },
   basilisk: {
-    type: "basilisk", side: "dark", maxHp: 10, moveRange: 3,
+    type: "basilisk", side: "dark", maxHp: 10, moveRange: 4, // spec: Ground (4)
     movementType: "ground", attackRange: 180, attackSpeed: 2.0, projectileSpeed: 350,
   },
   manticore: {
@@ -55,7 +55,7 @@ const PIECE_DEFS: Record<PieceType, PieceDef> = {
     movementType: "flying", attackRange: 80, attackSpeed: 1.0, projectileSpeed: 0,
   },
   troll: {
-    type: "troll", side: "dark", maxHp: 20, moveRange: 2,
+    type: "troll", side: "dark", maxHp: 20, moveRange: 3, // spec: Ground (3)
     movementType: "ground", attackRange: 200, attackSpeed: 0.5, projectileSpeed: 200,
   },
   dragon: {

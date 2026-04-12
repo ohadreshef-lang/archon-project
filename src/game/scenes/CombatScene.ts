@@ -84,11 +84,11 @@ export class CombatScene extends Phaser.Scene {
     this.createBarriers();
     this.drawArenaFrame(lumStep);
 
-    const aBonus = this.hpBonus(data.attacker.side, lumStep);
-    const dBonus = this.hpBonus(data.defender.side, lumStep);
+    const aMult = this.hpMultiplier(data.attacker.side, data.combatState.squareType, lumStep);
+    const dMult = this.hpMultiplier(data.defender.side, data.combatState.squareType, lumStep);
 
-    this.attacker = this.createUnit(data.attacker, 80,            ARENA_H / 2, aBonus,  data.isLocalAttacker);
-    this.defender = this.createUnit(data.defender, ARENA_W - 80,  ARENA_H / 2, dBonus, !data.isLocalAttacker);
+    this.attacker = this.createUnit(data.attacker, 80,            ARENA_H / 2, aMult,  data.isLocalAttacker);
+    this.defender = this.createUnit(data.defender, ARENA_W - 80,  ARENA_H / 2, dMult, !data.isLocalAttacker);
 
     this.localUnit  = data.isLocalAttacker ? this.attacker : this.defender;
     this.remoteUnit = data.isLocalAttacker ? this.defender : this.attacker;
@@ -249,8 +249,28 @@ export class CombatScene extends Phaser.Scene {
     return [0x050505, 0x050510, 0x10051a, 0x051008, 0x05100f, 0x1a1a1a][step] ?? 0x0a0a0a;
   }
 
-  private hpBonus(side: "light" | "dark", step: number): number {
-    return side === "light" ? Math.round((step / 5) * 7) : Math.round(((5 - step) / 5) * 7);
+  /**
+   * Spec §2 — Health Modifiers by Tile Color (multiplicative, 3-tier):
+   *   Favorable tile  → ×1.25  (massive HP advantage)
+   *   Neutral tile    → ×1.00  (gray, oscillating mid-point)
+   *   Hostile tile    → ×0.35  (30-50% of max — "severely penalized")
+   *
+   * "advantage" = 1.0 fully favorable, 0.5 neutral, 0.0 fully hostile.
+   * Linear segments: [0.0→0.5] maps ×0.35→×1.00, [0.5→1.0] maps ×1.00→×1.25.
+   */
+  private hpMultiplier(
+    side: "light" | "dark",
+    squareType: "light" | "dark" | "oscillating",
+    step: number,   // 0 = white (full light), 5 = black (full dark)
+  ): number {
+    let lightAdvantage: number;
+    if (squareType === "light")      lightAdvantage = 1.0;
+    else if (squareType === "dark")  lightAdvantage = 0.0;
+    else                             lightAdvantage = 1 - step / 5; // oscillating
+
+    const advantage = side === "light" ? lightAdvantage : 1 - lightAdvantage;
+    if (advantage >= 0.5) return 1.0 + (advantage - 0.5) * 0.5;  // 1.00→1.25
+    else                  return 0.35 + advantage * 1.30;          // 0.35→1.00
   }
 
   private drawArenaFrame(step: number) {
@@ -281,8 +301,10 @@ export class CombatScene extends Phaser.Scene {
 
   // ── Unit creation ──────────────────────────────────────────────────────
 
-  private createUnit(piece: BoardPiece, x: number, y: number, hpBonus: number, isLocal: boolean): CombatUnit {
-    const hp = Math.min(piece.hp + hpBonus, piece.maxHp + hpBonus);
+  private createUnit(piece: BoardPiece, x: number, y: number, hpMult: number, isLocal: boolean): CombatUnit {
+    // Scale both current and max HP proportionally (handles pre-existing wounds per spec)
+    const maxHp = Math.max(1, Math.round(piece.maxHp * hpMult));
+    const hp    = Math.max(1, Math.round(piece.hp    * hpMult));
     const isLight = piece.side === "light";
     const fillColor   = isLight ? 0x3730a3 : 0x9f1239;
     const strokeColor = isLight ? 0x818cf8 : 0xfb7185;
@@ -309,7 +331,7 @@ export class CombatScene extends Phaser.Scene {
     const hpBar = this.add.rectangle(x - BAR_W / 2, y - 40, BAR_W, 9, barColor).setOrigin(0, 0.5);
 
     // Numeric HP text
-    const hpText = this.add.text(x, y - 40, `${hp}/${hp}`, {
+    const hpText = this.add.text(x, y - 40, `${hp}/${maxHp}`, {
       fontSize: "9px", fontFamily: "Inter,sans-serif", color: "#9ca3af",
     }).setOrigin(0.5);
 
@@ -318,7 +340,7 @@ export class CombatScene extends Phaser.Scene {
     label.setAlpha(0).setScale(0.3);
     this.tweens.add({ targets: [circle, label], alpha: 1, scaleX: 1, scaleY: 1, duration: 350, ease: "Back.easeOut" });
 
-    return { piece, circle, label, hpBg, hpBar, hpText, hp, maxHp: hp, lastFired: 0, vx: 0, vy: 0, isLocal };
+    return { piece, circle, label, hpBg, hpBar, hpText, hp, maxHp, lastFired: 0, vx: 0, vy: 0, isLocal };
   }
 
   private hpColor(pct: number): number {

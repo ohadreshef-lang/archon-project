@@ -74,6 +74,7 @@ export interface CombatState {
   boardCol: number;
   boardRow: number;
   squareLuminance: number;
+  squareType: "light" | "dark" | "oscillating"; // drives HP multiplier per spec
 }
 
 export interface NetworkMessage {
