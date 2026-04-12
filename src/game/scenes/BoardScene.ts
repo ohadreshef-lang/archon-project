@@ -10,10 +10,8 @@ const SELECT_COLOR = 0x3b82f6; // blue
 const MOVE_COLOR   = 0x22c55e; // emerald
 const ATTACK_COLOR = 0xef4444; // red (enemy valid move)
 
-const LIGHT_PIECE_BG   = 0x1e3a5f; // deep navy
-const LIGHT_PIECE_RIM  = 0x93c5fd; // blue-300 rim
-const DARK_PIECE_BG    = 0x3b0a1a; // deep crimson
-const DARK_PIECE_RIM   = 0xfca5a5; // red-300 rim
+const LIGHT_DOT = 0x93c5fd; // blue-300 — team indicator for light pieces
+const DARK_DOT  = 0xfca5a5; // red-300  — team indicator for dark pieces
 
 // Oscillating squares span from LIGHT_TILE (step 0) → DARK_TILE (step 5)
 // so the board looks like a normal symmetric checkerboard at the extremes
@@ -29,9 +27,7 @@ const OSCILLATING_COLORS = [
 
 interface PieceContainer {
   container: Phaser.GameObjects.Container;
-  bg: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
-  glow: Phaser.GameObjects.Arc;
 }
 
 export class BoardScene extends Phaser.Scene {
@@ -45,6 +41,7 @@ export class BoardScene extends Phaser.Scene {
   private pendingState: GameState | null = null;
   private onMoveFn?: (from: [number, number], to: [number, number]) => void;
   private playerSide: "light" | "dark" = "light";
+  private tooltip: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: "BoardScene" });
@@ -102,66 +99,39 @@ export class BoardScene extends Phaser.Scene {
     const cx = col * TILE_SIZE + TILE_SIZE / 2;
     const cy = row * TILE_SIZE + TILE_SIZE / 2;
 
-    // Outer soft halo
-    const halo = this.add.graphics();
-    halo.fillStyle(POWER_COLOR, 0.08);
-    halo.fillCircle(cx, cy, 28);
-    this.tweens.add({
-      targets: halo,
-      alpha: { from: 0.5, to: 1 },
-      scaleX: { from: 0.85, to: 1.15 },
-      scaleY: { from: 0.85, to: 1.15 },
-      duration: 1800,
-      yoyo: true, repeat: -1,
-      ease: "Sine.easeInOut",
-    });
-
-    // Mid ring — pulses in opposite phase
+    // Ambient ring (static, always visible)
     const ring = this.add.graphics();
-    ring.lineStyle(2, POWER_COLOR, 0.7);
-    ring.strokeCircle(cx, cy, 18);
-    this.tweens.add({
-      targets: ring,
-      alpha: { from: 0.4, to: 1.0 },
-      scaleX: { from: 0.9, to: 1.1 },
-      scaleY: { from: 0.9, to: 1.1 },
-      duration: 1800,
-      yoyo: true, repeat: -1,
-      ease: "Sine.easeInOut",
-      delay: 900, // offset for ripple feel
-    });
+    ring.lineStyle(1.5, POWER_COLOR, 0.45);
+    ring.strokeCircle(cx, cy, 16);
 
-    // Inner bright dot
+    // Inner dot — heartbeat
     const dot = this.add.graphics();
-    dot.fillStyle(0xfef3c7, 1); // amber-100 core
-    dot.fillCircle(cx, cy, 4);
-    this.tweens.add({
-      targets: dot,
-      alpha: { from: 0.6, to: 1 },
-      scaleX: { from: 0.8, to: 1.2 },
-      scaleY: { from: 0.8, to: 1.2 },
-      duration: 900,
-      yoyo: true, repeat: -1,
-      ease: "Sine.easeInOut",
-    });
+    dot.fillStyle(POWER_COLOR, 0.9);
+    dot.fillCircle(cx, cy, 5);
 
-    // Rotating 4-pointed star
-    const star = this.add.graphics();
-    star.fillStyle(POWER_COLOR, 0.9);
-    // Draw 4 diamond points
-    const sp = 12; // spike reach
-    const sw = 2.5;  // spike half-width
-    star.fillTriangle(cx, cy - sp, cx - sw, cy, cx + sw, cy); // up
-    star.fillTriangle(cx, cy + sp, cx - sw, cy, cx + sw, cy); // down
-    star.fillTriangle(cx - sp, cy, cx, cy - sw, cx, cy + sw); // left
-    star.fillTriangle(cx + sp, cy, cx, cy - sw, cx, cy + sw); // right
-    this.tweens.add({
-      targets: star,
-      angle: 360,
-      duration: 4000,
-      repeat: -1,
-      ease: "Linear",
-    });
+    // Heartbeat: two quick pulses then a long rest
+    // Beat 1 → rest briefly → Beat 2 → long pause → repeat
+    const beat = () => {
+      this.tweens.add({
+        targets: [dot, ring],
+        scaleX: 1.35, scaleY: 1.35,
+        duration: 200, ease: "Quad.easeOut",
+        yoyo: true,
+        onComplete: () => {
+          this.time.delayedCall(130, () => {
+            this.tweens.add({
+              targets: [dot, ring],
+              scaleX: 1.2, scaleY: 1.2,
+              duration: 160, ease: "Quad.easeOut",
+              yoyo: true,
+              onComplete: () => this.time.delayedCall(1800, beat),
+            });
+          });
+        },
+      });
+    };
+    // Stagger each power point so they don't all pulse simultaneously
+    this.time.delayedCall(Math.random() * 600, beat);
   }
 
   updateState(state: GameState) {
@@ -222,49 +192,62 @@ export class BoardScene extends Phaser.Scene {
   private createPieceContainer(piece: BoardPiece): PieceContainer {
     const cx = piece.col * TILE_SIZE + TILE_SIZE / 2;
     const cy = piece.row * TILE_SIZE + TILE_SIZE / 2;
-    const radius = 26;
     const isLight = piece.side === "light";
-    const bgColor  = isLight ? LIGHT_PIECE_BG  : DARK_PIECE_BG;
-    const rimColor = isLight ? LIGHT_PIECE_RIM : DARK_PIECE_RIM;
 
-    // Soft outer glow
-    const glow = this.add.arc(0, 0, radius + 6, 0, 360, false, rimColor, 0);
-    glow.setStrokeStyle(5, rimColor, 0.25);
-
-    // Main circle
-    const bg = this.add.arc(0, 0, radius, 0, 360, false, bgColor);
-    bg.setStrokeStyle(2.5, rimColor, 1);
-
-    // Inner highlight rim (top-left arc for 3-D feel)
-    const shine = this.add.graphics();
-    shine.lineStyle(1.5, 0xffffff, 0.18);
-    shine.beginPath();
-    shine.arc(0, -3, radius - 5, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(340));
-    shine.strokePath();
-
-    const label = this.add.text(0, 1, PIECE_LABEL[piece.type] ?? "?", {
-      fontSize: "22px",
+    // Large emoji — no circle background
+    const label = this.add.text(0, -2, PIECE_LABEL[piece.type] ?? "?", {
+      fontSize: "28px",
       fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
-    }).setOrigin(0.5);
+      shadow: { offsetX: 1, offsetY: 1, color: "#000000", blur: 4, fill: true },
+    }).setOrigin(0.5, 0.5);
 
-    const container = this.add.container(cx, cy, [glow, bg, shine, label]);
-    container.setSize(radius * 2, radius * 2);
+    // Small team-colour dot at bottom of tile
+    const dot = this.add.arc(0, 22, 4, 0, 360, false, isLight ? LIGHT_DOT : DARK_DOT, 1);
 
-    // Subtle glow pulse on idle
-    this.tweens.add({
-      targets: glow,
-      alpha: { from: 0.3, to: 0.8 },
-      duration: 2200,
-      yoyo: true, repeat: -1,
-      ease: "Sine.easeInOut",
-      delay: Math.random() * 1000,
+    const container = this.add.container(cx, cy, [label, dot]);
+    // Hit area matches tile so hover works anywhere over the piece's cell
+    container.setSize(TILE_SIZE - 8, TILE_SIZE - 8);
+    container.setInteractive();
+
+    // Hover: scale emoji slightly and show tooltip
+    container.on("pointerover", () => {
+      this.tweens.add({ targets: label, scale: 1.2, duration: 100, ease: "Quad.easeOut" });
+      this.showTooltip(PIECE_NAME[piece.type] ?? piece.type, container.x, container.y, isLight);
+    });
+    container.on("pointerout", () => {
+      this.tweens.add({ targets: label, scale: 1, duration: 100, ease: "Quad.easeIn" });
+      this.hideTooltip();
     });
 
-    // Entrance animation
-    container.setAlpha(0).setScale(0.4);
-    this.tweens.add({ targets: container, alpha: 1, scaleX: 1, scaleY: 1, duration: 300, ease: "Back.easeOut" });
+    // Simple fade-in entrance (no scale pop — keeps it calm)
+    container.setAlpha(0);
+    this.tweens.add({ targets: container, alpha: 1, duration: 280, ease: "Quad.easeOut" });
 
-    return { container, bg, label, glow };
+    return { container, label };
+  }
+
+  private showTooltip(name: string, x: number, y: number, isLight: boolean) {
+    this.hideTooltip();
+    const pad = 6;
+    const text = this.add.text(0, 0, name, {
+      fontSize: "11px",
+      fontFamily: "Inter, system-ui, sans-serif",
+      color: "#f9fafb",
+      fontStyle: "bold",
+    }).setOrigin(0.5, 1);
+    const w = text.width + pad * 2;
+    const h = text.height + pad;
+    const bg = this.add.graphics();
+    bg.fillStyle(isLight ? 0x1e3a5f : 0x3b0a1a, 0.92);
+    bg.fillRoundedRect(-w / 2, -h, w, h, 4);
+    bg.lineStyle(1, isLight ? LIGHT_DOT : DARK_DOT, 0.7);
+    bg.strokeRoundedRect(-w / 2, -h, w, h, 4);
+    this.tooltip = this.add.container(x, y - TILE_SIZE * 0.55, [bg, text]);
+    this.tooltip.setDepth(200);
+  }
+
+  private hideTooltip() {
+    if (this.tooltip) { this.tooltip.destroy(); this.tooltip = null; }
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
@@ -402,25 +385,37 @@ export class BoardScene extends Phaser.Scene {
   }
 }
 
+// Emoji chosen to be as recognisable as possible as actual characters/creatures
 const PIECE_LABEL: Record<string, string> = {
-  wizard:         "🧙",
-  sorceress:      "🔮",
-  unicorn:        "🦄",
-  basilisk:       "🐍",
-  archer:         "🏹",
-  manticore:      "🦁",
-  valkyrie:       "⚔️",
-  banshee:        "👻",
-  golem:          "🗿",
-  troll:          "👹",
-  djinni:         "🌪️",
-  dragon:         "🐉",
-  phoenix:        "🦅",
-  shapeshifter:   "🌀",
-  knight:         "♞",
-  goblin:         "👺",
-  elemental_fire: "🔥",
-  elemental_earth:"🪨",
-  elemental_water:"💧",
-  elemental_air:  "💨",
+  wizard:          "🧙",    // robed mage
+  sorceress:       "🧙‍♀️",  // woman mage (distinct from wizard)
+  unicorn:         "🦄",    // unicorn
+  basilisk:        "🦎",    // lizard-reptile (closest to basilisk)
+  archer:          "🏹",    // bow & arrow — universally understood
+  manticore:       "🦁",    // lion-body beast
+  valkyrie:        "🛡️",   // shield = warrior/defender
+  banshee:         "👻",    // ghost / wailing spirit
+  golem:           "🗿",    // stone statue
+  troll:           "👹",    // horned ogre
+  djinni:          "🧞",    // genie
+  dragon:          "🐉",    // dragon
+  phoenix:         "🦅",    // eagle / firebird (best available)
+  shapeshifter:    "🎭",    // drama masks = changing forms
+  knight:          "⚔️",   // crossed swords = warrior
+  goblin:          "👺",    // tengu-goblin mask
+  elemental_fire:  "🔥",
+  elemental_earth: "🪨",
+  elemental_water: "💧",
+  elemental_air:   "💨",
+};
+
+const PIECE_NAME: Record<string, string> = {
+  wizard: "Wizard", sorceress: "Sorceress", unicorn: "Unicorn",
+  basilisk: "Basilisk", archer: "Archer", manticore: "Manticore",
+  valkyrie: "Valkyrie", banshee: "Banshee", golem: "Golem",
+  troll: "Troll", djinni: "Djinni", dragon: "Dragon",
+  phoenix: "Phoenix", shapeshifter: "Shapeshifter",
+  knight: "Knight", goblin: "Goblin",
+  elemental_fire: "Fire Elemental", elemental_earth: "Earth Elemental",
+  elemental_water: "Water Elemental", elemental_air: "Air Elemental",
 };
