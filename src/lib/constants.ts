@@ -15,10 +15,15 @@ export const POWER_POINTS: [number, number][] = [
 export const LIGHT_HOME: [number, number] = [0, 4]; // [col, row]
 export const DARK_HOME:  [number, number] = [8, 4];
 
-// Luminance cycle: subtle dark-slate shades shift with each turn
-// (used only for display — not the old rainbow palette)
+// Luminance cycle: 6 pure-grayscale steps from near-black → near-white.
+// R = G = B at every step — no hue, no tint, no green.
 export const LUMINANCE_COLORS = [
-  0x000000, 0x00008b, 0x800080, 0x008000, 0x00ffff, 0xffffff,
+  0x1a1a1a, // step 0 — near black
+  0x3c3c3c, // step 1 — dark grey
+  0x666666, // step 2 — mid-dark grey
+  0x999999, // step 3 — mid-light grey
+  0xc0c0c0, // step 4 — light grey
+  0xe8e8e8, // step 5 — near white
 ];
 
 export const LUMINANCE_CYCLE_LENGTH = 12; // turns per full half-cycle

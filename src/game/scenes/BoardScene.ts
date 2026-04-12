@@ -2,9 +2,9 @@ import * as Phaser from "phaser";
 import { BOARD_SIZE, TILE_SIZE, POWER_POINTS, LUMINANCE_COLORS, OSCILLATING_SQUARES, LIGHT_HOME, DARK_HOME } from "@/lib/constants";
 import type { BoardPiece, CombatState, GameState } from "@/lib/types";
 
-// Modern color palette
-const LIGHT_TILE   = 0xd1d5db; // cool gray-300
-const DARK_TILE    = 0x1f2937; // gray-800
+// Tile colors — strictly pure grayscale (R = G = B), no hue whatsoever
+const LIGHT_TILE   = 0xd4d4d4; // gray-300  (212, 212, 212)
+const DARK_TILE    = 0x1e1e1e; // gray-900  ( 30,  30,  30)
 const POWER_COLOR  = 0xf59e0b; // amber
 const SELECT_COLOR = 0x3b82f6; // blue
 const MOVE_COLOR   = 0x22c55e; // emerald
@@ -13,16 +13,15 @@ const ATTACK_COLOR = 0xef4444; // red (enemy valid move)
 const LIGHT_DOT = 0x93c5fd; // blue-300 — team indicator for light pieces
 const DARK_DOT  = 0xfca5a5; // red-300  — team indicator for dark pieces
 
-// Oscillating squares span from LIGHT_TILE (step 0) → DARK_TILE (step 5)
-// so the board looks like a normal symmetric checkerboard at the extremes
-// and shows a consistent mid-grey pattern in between.
+// Oscillating squares: pure grayscale ramp, LIGHT_TILE → DARK_TILE.
+// Every entry has R = G = B — zero green component at any step.
 const OSCILLATING_COLORS = [
-  0xd1d5db, // step 0 — full light  (matches LIGHT_TILE)
-  0xa8b8c8, // step 1 — light-grey
-  0x7a8fa5, // step 2 — medium grey
-  0x4a5e75, // step 3 — medium dark
-  0x2d3f54, // step 4 — dark slate
-  0x1f2937, // step 5 — full dark   (matches DARK_TILE)
+  0xd4d4d4, // step 0 — full light  (212, 212, 212) matches LIGHT_TILE
+  0xa8a8a8, // step 1 — light grey  (168, 168, 168)
+  0x787878, // step 2 — mid grey    (120, 120, 120)
+  0x484848, // step 3 — mid-dark    ( 72,  72,  72)
+  0x2d2d2d, // step 4 — dark grey   ( 45,  45,  45)
+  0x1e1e1e, // step 5 — full dark   ( 30,  30,  30) matches DARK_TILE
 ];
 
 interface PieceContainer {
