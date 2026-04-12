@@ -49,6 +49,7 @@ export class CombatScene extends Phaser.Scene {
   private fireKey!: Phaser.Input.Keyboard.Key;
   private onCombatEnd?: (attackerHp: number, defenderHp: number) => void;
   private ended = false;
+  private combatLocked = true;   // blocks input until GET READY screen clears
   private isLocalAttacker = true;
 
   // Touch controls
@@ -68,6 +69,7 @@ export class CombatScene extends Phaser.Scene {
 
   create(data: SceneData) {
     this.ended = false;
+    this.combatLocked = true;
     this.onCombatEnd = data.onCombatEnd;
     this.isLocalAttacker = data.isLocalAttacker;
     this.joystickPointerId = -1;
@@ -117,11 +119,128 @@ export class CombatScene extends Phaser.Scene {
       { fontSize: "13px", fontFamily: "Inter,sans-serif", color: remoteColor }
     ).setOrigin(1, 0).setDepth(5);
 
-    // Entrance flash
-    this.cameras.main.flash(300, 0, 0, 0, false);
-
     // Touch controls
     this.setupTouchControls();
+
+    // GET READY screen — shown first, unlocks combat after it clears
+    this.showGetReadyScreen(data);
+  }
+
+  // ── GET READY screen ───────────────────────────────────────────────────
+
+  private showGetReadyScreen(data: SceneData) {
+    const W = ARENA_W, H = ARENA_H;
+    const DEPTH = 500;
+
+    // Dim overlay
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82).setDepth(DEPTH);
+
+    // Collect all portrait objects for coordinated fade
+    const portraitObjs: Phaser.GameObjects.GameObject[] = [];
+
+    // ── Portrait card helper ────────────────────────────────────────────
+    const makeCard = (piece: BoardPiece, cx: number) => {
+      const cw = 148, ch = 186;
+      const isLight = piece.side === "light";
+      const borderColor = isLight ? 0xd4af37 : 0x3b82f6; // gold vs blue
+
+      const bg = this.add.graphics().setDepth(DEPTH + 1).setAlpha(0);
+      bg.fillStyle(0x111827, 0.95);
+      bg.fillRoundedRect(cx - cw / 2, H / 2 - ch / 2, cw, ch, 8);
+      bg.lineStyle(3, borderColor, 1);
+      bg.strokeRoundedRect(cx - cw / 2, H / 2 - ch / 2, cw, ch, 8);
+      // Corner rivets
+      bg.fillStyle(borderColor, 1);
+      for (const [ox, oy] of [[-cw/2, -ch/2],[cw/2, -ch/2],[-cw/2, ch/2],[cw/2, ch/2]]) {
+        bg.fillCircle(cx + ox, H / 2 + oy, 5);
+      }
+      portraitObjs.push(bg);
+
+      // Large emoji portrait
+      const emoji = this.add.text(cx, H / 2 - 28, PIECE_LABEL[piece.type] ?? "?", {
+        fontSize: "64px",
+        fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
+        shadow: { offsetX: 2, offsetY: 2, color: "#000", blur: 6, fill: true },
+      }).setOrigin(0.5).setDepth(DEPTH + 2).setAlpha(0);
+      portraitObjs.push(emoji);
+
+      // Piece name
+      const name = piece.type.charAt(0).toUpperCase() + piece.type.slice(1);
+      const nameText = this.add.text(cx, H / 2 + 70, name, {
+        fontSize: "14px", fontFamily: "Inter, sans-serif",
+        fontStyle: "bold", color: isLight ? "#d4af37" : "#60a5fa",
+        letterSpacing: 2,
+      }).setOrigin(0.5).setDepth(DEPTH + 2).setAlpha(0);
+      portraitObjs.push(nameText);
+
+      // YOU / ENEMY label
+      const tag = piece === (data.isLocalAttacker ? data.attacker : data.defender) ? "YOU" : "ENEMY";
+      const tagText = this.add.text(cx, H / 2 + 90, tag, {
+        fontSize: "10px", fontFamily: "Inter, sans-serif",
+        color: "#6b7280", fontStyle: "bold",
+      }).setOrigin(0.5).setDepth(DEPTH + 2).setAlpha(0);
+      portraitObjs.push(tagText);
+    };
+
+    makeCard(data.attacker, W * 0.26);
+    makeCard(data.defender, W * 0.74);
+
+    // ── "GET READY" banner ──────────────────────────────────────────────
+    const bannerW = 200, bannerH = 100;
+    const bannerBg = this.add.graphics().setDepth(DEPTH + 1);
+    bannerBg.fillStyle(0x5c3a00, 0.95);
+    bannerBg.fillRoundedRect(W / 2 - bannerW / 2, H / 2 - bannerH / 2, bannerW, bannerH, 6);
+    bannerBg.lineStyle(2, 0xd4af37, 0.8);
+    bannerBg.strokeRoundedRect(W / 2 - bannerW / 2, H / 2 - bannerH / 2, bannerW, bannerH, 6);
+    // Corner rivets
+    bannerBg.fillStyle(0xd4af37, 1);
+    for (const [ox, oy] of [[-bannerW/2, -bannerH/2],[bannerW/2, -bannerH/2],
+                             [-bannerW/2, bannerH/2], [bannerW/2, bannerH/2]]) {
+      bannerBg.fillCircle(W / 2 + ox, H / 2 + oy, 4);
+    }
+
+    const getReady = this.add.text(W / 2, H / 2, "GET\nREADY", {
+      fontSize: "34px", fontFamily: "'Georgia', 'Times New Roman', serif",
+      fontStyle: "bold", color: "#f9fafb",
+      align: "center", lineSpacing: 4,
+      shadow: { offsetX: 2, offsetY: 2, color: "#000", blur: 4, fill: true },
+    }).setOrigin(0.5).setDepth(DEPTH + 2);
+
+    // Collect all objects for fade-out
+    const allObjs = [overlay, bannerBg, getReady];
+
+    // Quick fade-in, hold, then fade out → unlock combat
+    this.tweens.add({
+      targets: allObjs, alpha: { from: 0, to: 1 },
+      duration: 350, ease: "Quad.easeOut",
+      onComplete: () => {
+        this.time.delayedCall(1600, () => {
+          this.tweens.add({
+            targets: allObjs,
+            alpha: 0, duration: 400, ease: "Quad.easeIn",
+            onComplete: () => {
+              allObjs.forEach(o => o.destroy());
+              // 1 second after the screen clears, unlock combat
+              this.time.delayedCall(800, () => { this.combatLocked = false; });
+            },
+          });
+        });
+      },
+    });
+
+    // Fade portrait cards in alongside the banner
+    this.tweens.add({
+      targets: portraitObjs, alpha: 1,
+      duration: 350, ease: "Quad.easeOut",
+      onComplete: () => {
+        this.time.delayedCall(1600, () => {
+          this.tweens.add({
+            targets: portraitObjs, alpha: 0, duration: 400, ease: "Quad.easeIn",
+            onComplete: () => portraitObjs.forEach(o => (o as Phaser.GameObjects.GameObject & { destroy(): void }).destroy()),
+          });
+        });
+      },
+    });
   }
 
   // ── Arena visuals ──────────────────────────────────────────────────────
@@ -287,7 +406,7 @@ export class CombatScene extends Phaser.Scene {
   // ── Update loop ────────────────────────────────────────────────────────
 
   update(time: number) {
-    if (this.ended) return;
+    if (this.ended || this.combatLocked) return;
     this.handleLocalInput(time);
     this.runAI(this.remoteUnit, time);
     this.moveUnit(this.attacker);
