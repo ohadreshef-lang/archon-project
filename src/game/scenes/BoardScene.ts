@@ -155,6 +155,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private applyState(state: GameState) {
+    this.clearSelection();          // always wipe move-highlight overlays before redrawing
     this.gameState = state;
     this.updateLuminance(state.luminanceStep);
     this.renderPieces(state.board);

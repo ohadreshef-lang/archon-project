@@ -315,7 +315,12 @@ export class CombatScene extends Phaser.Scene {
       .setStrokeStyle(1, 0x374151).setScrollFactor(0).setDepth(10);
     const hpBar = this.add.rectangle(hudX - BAR_W/2, HUD_Y, BAR_W, BAR_H, this.hpColor(1))
       .setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
-    const hpText = this.add.text(hudX, HUD_Y, `${piece.hp}/${piece.maxHp}`, {
+    // Use spec HP values (70-150 range) so damage figures are meaningful.
+    // Scale by the piece's current board-health ratio to preserve wounds.
+    const specMaxHp = spec.hp;
+    const specHp    = Math.max(1, Math.round(specMaxHp * (piece.hp / piece.maxHp)));
+
+    const hpText = this.add.text(hudX, HUD_Y, `${specHp}/${specMaxHp}`, {
       fontSize: "8px", fontFamily: "Inter,sans-serif", color: "#9ca3af",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(11);
 
@@ -337,7 +342,7 @@ export class CombatScene extends Phaser.Scene {
 
     return {
       piece, sprite, ring, hpBg, hpBar, hpText,
-      x: wx, y: wy, hp: piece.hp, maxHp: piece.maxHp,
+      x: wx, y: wy, hp: specHp, maxHp: specMaxHp,
       spec, speedPx, bodyPx, isLocal, isFlying: spec.flying,
       facing: isLocal ? 0 : Math.PI,
       vx:0, vy:0,
@@ -794,7 +799,11 @@ export class CombatScene extends Phaser.Scene {
     this.tweens.add({targets:loser.sprite,scaleX:0,scaleY:0,alpha:0.1,duration:400,ease:"Quad.easeIn"});
     this.cameras.main.flash(300,(wc>>16)&0xff,(wc>>8)&0xff,wc&0xff,false);
     this.time.delayedCall(500,()=>{
-      this.onCombatEnd?.(this.attacker.hp,this.defender.hp);
+      // Convert spec-scale HP back to board-scale so GameRoom's piece state stays consistent.
+      // Loser always returns 0; winner's HP ratio is preserved.
+      const scale = (u: CombatUnit) =>
+        u.hp <= 0 ? 0 : Math.max(1, Math.round(u.hp / u.maxHp * u.piece.maxHp));
+      this.onCombatEnd?.(scale(this.attacker), scale(this.defender));
       this.scene.stop();
     });
   }
