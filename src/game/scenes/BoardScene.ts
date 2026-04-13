@@ -46,6 +46,18 @@ export class BoardScene extends Phaser.Scene {
     super({ key: "BoardScene" });
   }
 
+  preload() {
+    // Load sprite images — one PNG per piece type
+    const types = [
+      "wizard","unicorn","golem","djinni","phoenix","manticore","archer","valkyrie",
+      "sorceress","dragon","basilisk","shapeshifter","knight","banshee","troll","goblin",
+      "elemental_fire","elemental_earth","elemental_water","elemental_air",
+    ];
+    for (const t of types) {
+      this.load.image(t, `/sprites/${t}.png`);
+    }
+  }
+
   create() {
     this.cameras.main.setBackgroundColor(0x070b14);
     this.drawBoard();
@@ -98,35 +110,36 @@ export class BoardScene extends Phaser.Scene {
     const cx = col * TILE_SIZE + TILE_SIZE / 2;
     const cy = row * TILE_SIZE + TILE_SIZE / 2;
 
-    // Glow halo — alpha synced with scale for intensity effect
+    // Soft glow halo — kept faint so it doesn't compete with pieces
     const glow = this.add.graphics();
     glow.fillStyle(POWER_COLOR, 1);
-    glow.fillCircle(0, 0, 14);
+    glow.fillCircle(0, 0, 11);
     glow.setPosition(cx, cy);
-    glow.setAlpha(0.18);
+    glow.setAlpha(0.10);
 
-    // Core dot
+    // Core dot — small and subtle
     const dot = this.add.graphics();
     dot.fillStyle(POWER_COLOR, 1);
-    dot.fillCircle(0, 0, 5);
+    dot.fillCircle(0, 0, 3);
     dot.setPosition(cx, cy);
+    dot.setAlpha(0.55);
 
-    // Single looping pulse: scale 1.0 → 1.15 → 1.0, glow 0.18 → 0.55 → 0.18
-    // ~1 s duration, ease-in-out, infinite repeat
+    // Slow heartbeat: scale 1.0 → 1.15 → 1.0, ~2 s per full cycle
     this.tweens.add({
       targets: [dot, glow],
       scaleX: 1.15,
       scaleY: 1.15,
-      duration: 500,
+      duration: 1000,          // 1 s up + 1 s down = 2 s cycle
       ease: "Sine.easeInOut",
       yoyo: true,
       repeat: -1,
     });
 
+    // Glow intensity 0.10 → 0.28 → 0.10 in sync — soft, never harsh
     this.tweens.add({
       targets: glow,
-      alpha: { from: 0.18, to: 0.55 },
-      duration: 500,
+      alpha: { from: 0.10, to: 0.28 },
+      duration: 1000,
       ease: "Sine.easeInOut",
       yoyo: true,
       repeat: -1,
@@ -193,36 +206,50 @@ export class BoardScene extends Phaser.Scene {
     const cy = piece.row * TILE_SIZE + TILE_SIZE / 2;
     const isLight = piece.side === "light";
 
-    // Large emoji — no circle background
-    const label = this.add.text(0, -2, PIECE_LABEL[piece.type] ?? "?", {
-      fontSize: "28px",
-      fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
-      shadow: { offsetX: 1, offsetY: 1, color: "#000000", blur: 4, fill: true },
-    }).setOrigin(0.5, 0.5);
+    // Sprite image — fit inside the tile with a small margin
+    const spriteSize = TILE_SIZE - 10; // 54px display size
+    const hasSprite = this.textures.exists(piece.type);
+    let label: Phaser.GameObjects.Text | Phaser.GameObjects.Image;
+
+    if (hasSprite) {
+      const img = this.add.image(0, -3, piece.type);
+      // Scale to fit within tile, preserving aspect ratio
+      const tex = this.textures.get(piece.type).getSourceImage();
+      const scale = spriteSize / Math.max(tex.width as number, tex.height as number);
+      img.setScale(scale);
+      label = img;
+    } else {
+      // Fallback: emoji if sprite not loaded
+      label = this.add.text(0, -2, PIECE_LABEL[piece.type] ?? "?", {
+        fontSize: "26px",
+        fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
+      }).setOrigin(0.5, 0.5);
+    }
 
     // Small team-colour dot at bottom of tile
-    const dot = this.add.arc(0, 22, 4, 0, 360, false, isLight ? LIGHT_DOT : DARK_DOT, 1);
+    const dot = this.add.arc(0, 24, 3, 0, 360, false, isLight ? LIGHT_DOT : DARK_DOT, 1);
 
     const container = this.add.container(cx, cy, [label, dot]);
-    // Hit area matches tile so hover works anywhere over the piece's cell
     container.setSize(TILE_SIZE - 8, TILE_SIZE - 8);
     container.setInteractive();
 
-    // Hover: scale emoji slightly and show tooltip
+    // Hover: scale sprite slightly and show tooltip
     container.on("pointerover", () => {
-      this.tweens.add({ targets: label, scale: 1.2, duration: 100, ease: "Quad.easeOut" });
+      this.tweens.add({ targets: label, scale: (label as Phaser.GameObjects.Image).scaleX * 1.18, duration: 100, ease: "Quad.easeOut" });
       this.showTooltip(PIECE_NAME[piece.type] ?? piece.type, container.x, container.y, isLight);
     });
     container.on("pointerout", () => {
-      this.tweens.add({ targets: label, scale: 1, duration: 100, ease: "Quad.easeIn" });
+      const tex2 = hasSprite ? this.textures.get(piece.type).getSourceImage() : null;
+      const baseScale = tex2 ? spriteSize / Math.max(tex2.width as number, tex2.height as number) : 1;
+      this.tweens.add({ targets: label, scale: baseScale, duration: 100, ease: "Quad.easeIn" });
       this.hideTooltip();
     });
 
-    // Simple fade-in entrance (no scale pop — keeps it calm)
+    // Fade-in entrance
     container.setAlpha(0);
     this.tweens.add({ targets: container, alpha: 1, duration: 280, ease: "Quad.easeOut" });
 
-    return { container, label };
+    return { container, label: label as Phaser.GameObjects.Text };
   }
 
   private showTooltip(name: string, x: number, y: number, isLight: boolean) {
