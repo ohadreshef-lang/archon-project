@@ -67,6 +67,17 @@ export class CombatScene extends Phaser.Scene {
     super({ key: "CombatScene" });
   }
 
+  preload() {
+    const types = [
+      "wizard","unicorn","golem","djinni","phoenix","manticore","archer","valkyrie",
+      "sorceress","dragon","basilisk","shapeshifter","knight","banshee","troll","goblin",
+      "elemental_fire","elemental_earth","elemental_water","elemental_air",
+    ];
+    for (const t of types) {
+      if (!this.textures.exists(t)) this.load.image(t, `/sprites/${t}.png`);
+    }
+  }
+
   create(data: SceneData) {
     this.ended = false;
     this.combatLocked = true;
@@ -156,13 +167,23 @@ export class CombatScene extends Phaser.Scene {
       }
       portraitObjs.push(bg);
 
-      // Large emoji portrait
-      const emoji = this.add.text(cx, H / 2 - 28, PIECE_LABEL[piece.type] ?? "?", {
-        fontSize: "64px",
-        fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
-        shadow: { offsetX: 2, offsetY: 2, color: "#000", blur: 6, fill: true },
-      }).setOrigin(0.5).setDepth(DEPTH + 2).setAlpha(0);
-      portraitObjs.push(emoji);
+      // Portrait image (sprite if available, fallback to emoji text)
+      const PORTRAIT_H = 110;
+      const hasSprite = this.textures.exists(piece.type);
+      if (hasSprite) {
+        const portrait = this.add.image(cx, H / 2 - 22, piece.type);
+        const src = this.textures.get(piece.type).getSourceImage() as HTMLImageElement;
+        const scale = PORTRAIT_H / Math.max(src.width || 1, src.height || 1);
+        portrait.setScale(scale).setDepth(DEPTH + 2).setAlpha(0);
+        portraitObjs.push(portrait);
+      } else {
+        const emoji = this.add.text(cx, H / 2 - 28, PIECE_LABEL[piece.type] ?? "?", {
+          fontSize: "64px",
+          fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
+          shadow: { offsetX: 2, offsetY: 2, color: "#000", blur: 6, fill: true },
+        }).setOrigin(0.5).setDepth(DEPTH + 2).setAlpha(0);
+        portraitObjs.push(emoji);
+      }
 
       // Piece name
       const name = piece.type.charAt(0).toUpperCase() + piece.type.slice(1);
@@ -306,41 +327,61 @@ export class CombatScene extends Phaser.Scene {
     const maxHp = Math.max(1, Math.round(piece.maxHp * hpMult));
     const hp    = Math.max(1, Math.round(piece.hp    * hpMult));
     const isLight = piece.side === "light";
-    const fillColor   = isLight ? 0x3730a3 : 0x9f1239;
     const strokeColor = isLight ? 0x818cf8 : 0xfb7185;
 
-    const circle = this.add.arc(x, y, UNIT_RADIUS, 0, 360, false, fillColor);
-    circle.setStrokeStyle(2.5, strokeColor);
+    // Sprite image (60px tall, centred on unit position)
+    const SPRITE_H = 60;
+    const hasSprite = this.textures.exists(piece.type);
+    let label: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
 
-    const label = this.add.text(x, y + 1, PIECE_LABEL[piece.type] ?? "?", {
-      fontSize: "24px",
-      fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
-    }).setOrigin(0.5);
+    if (hasSprite) {
+      const img = this.add.image(x, y, piece.type);
+      const src = this.textures.get(piece.type).getSourceImage();
+      const scale = SPRITE_H / Math.max(src.width as number, src.height as number);
+      img.setScale(scale);
+      label = img;
+    } else {
+      label = this.add.text(x, y + 1, PIECE_LABEL[piece.type] ?? "?", {
+        fontSize: "24px",
+        fontFamily: "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif",
+      }).setOrigin(0.5);
+    }
+
+    // Subtle team-colour ring behind sprite so it reads on dark backgrounds
+    const circle = this.add.arc(x, y, UNIT_RADIUS, 0, 360, false, 0x000000, 0);
+    circle.setStrokeStyle(2, strokeColor, 0.55);
 
     // "YOU" / "ENEMY" tag
     const tagText = isLocal ? "YOU" : "ENEMY";
     const tagColor = isLocal ? (isLight ? "#818cf8" : "#fb7185") : "#6b7280";
-    this.add.text(x, y - 56, tagText, {
+    this.add.text(x, y - 52, tagText, {
       fontSize: "10px", fontFamily: "Inter,sans-serif",
       fontStyle: "bold", color: tagColor,
     }).setOrigin(0.5).setName(`tag_${isLocal ? "local" : "remote"}`);
 
     // HP bar (color-coded, 84px wide)
     const barColor = this.hpColor(1);
-    const hpBg  = this.add.rectangle(x, y - 40, BAR_W, 9, 0x1f2937).setStrokeStyle(1, 0x374151);
-    const hpBar = this.add.rectangle(x - BAR_W / 2, y - 40, BAR_W, 9, barColor).setOrigin(0, 0.5);
+    const hpBg  = this.add.rectangle(x, y - 42, BAR_W, 9, 0x1f2937).setStrokeStyle(1, 0x374151);
+    const hpBar = this.add.rectangle(x - BAR_W / 2, y - 42, BAR_W, 9, barColor).setOrigin(0, 0.5);
 
     // Numeric HP text
-    const hpText = this.add.text(x, y - 40, `${hp}/${maxHp}`, {
+    const hpText = this.add.text(x, y - 42, `${hp}/${maxHp}`, {
       fontSize: "9px", fontFamily: "Inter,sans-serif", color: "#9ca3af",
     }).setOrigin(0.5);
 
-    // Entrance animation
-    circle.setAlpha(0).setScale(0.3);
-    label.setAlpha(0).setScale(0.3);
-    this.tweens.add({ targets: [circle, label], alpha: 1, scaleX: 1, scaleY: 1, duration: 350, ease: "Back.easeOut" });
+    // Entrance animation — sprite slides up from below and fades in
+    label.setAlpha(0);
+    circle.setAlpha(0);
+    const startY = (label as Phaser.GameObjects.Image).y + 20;
+    (label as Phaser.GameObjects.Image).y = startY;
+    this.tweens.add({
+      targets: label,
+      alpha: 1, y: startY - 20,
+      duration: 400, ease: "Back.easeOut",
+    });
+    this.tweens.add({ targets: circle, alpha: 1, duration: 400, ease: "Quad.easeOut" });
 
-    return { piece, circle, label, hpBg, hpBar, hpText, hp, maxHp, lastFired: 0, vx: 0, vy: 0, isLocal };
+    return { piece, circle, label: label as Phaser.GameObjects.Text, hpBg, hpBar, hpText, hp, maxHp, lastFired: 0, vx: 0, vy: 0, isLocal };
   }
 
   private hpColor(pct: number): number {
