@@ -26,7 +26,9 @@ const OSCILLATING_COLORS = [
 
 interface PieceContainer {
   container: Phaser.GameObjects.Container;
-  label: Phaser.GameObjects.Text;
+  label: Phaser.GameObjects.Text;          // runtime: Image | Text
+  shadow: Phaser.GameObjects.Arc;
+  hoverTween?: Phaser.Tweens.Tween;       // flying-unit idle hover
 }
 
 export class BoardScene extends Phaser.Scene {
@@ -190,7 +192,7 @@ export class BoardScene extends Phaser.Scene {
         const pc = this.pieceContainers.get(piece.id)!;
         const cx = col * TILE_SIZE + TILE_SIZE / 2;
         const cy = row * TILE_SIZE + TILE_SIZE / 2;
-        this.tweens.add({ targets: pc.container, x: cx, y: cy, duration: 350, ease: "Cubic.easeInOut" });
+        this.animateMove(pc, piece, cx, cy);
       }
     }
     for (const [id, pc] of this.pieceContainers) {
@@ -227,10 +229,14 @@ export class BoardScene extends Phaser.Scene {
       }).setOrigin(0.5, 0.5);
     }
 
+    // Shadow: squashed circle below the sprite gives a grounded ellipse appearance
+    const shadow = this.add.arc(0, 22, 15, 0, 360, false, 0x000000, 1);
+    shadow.setScale(1, 0.28).setAlpha(0.20);
+
     // Small team-colour dot at bottom of tile
     const dot = this.add.arc(0, 24, 3, 0, 360, false, isLight ? LIGHT_DOT : DARK_DOT, 1);
 
-    const container = this.add.container(cx, cy, [label, dot]);
+    const container = this.add.container(cx, cy, [shadow, label, dot]);
     container.setSize(TILE_SIZE - 8, TILE_SIZE - 8);
     container.setInteractive();
 
@@ -250,7 +256,127 @@ export class BoardScene extends Phaser.Scene {
     container.setAlpha(0);
     this.tweens.add({ targets: container, alpha: 1, duration: 280, ease: "Quad.easeOut" });
 
-    return { container, label: label as Phaser.GameObjects.Text };
+    // Flying-unit idle hover: gentle bob on the label
+    const FLYING_TYPES = ["phoenix", "dragon", "djinni"];
+    let hoverTween: Phaser.Tweens.Tween | undefined;
+    if (FLYING_TYPES.includes(piece.type)) {
+      hoverTween = this.tweens.add({
+        targets: label,
+        y: (label as Phaser.GameObjects.Image).y - 4,
+        duration: 1100,
+        ease: "Sine.easeInOut",
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+
+    return { container, label: label as Phaser.GameObjects.Text, shadow, hoverTween };
+  }
+
+  // ── Movement animation ─────────────────────────────────────────────────────
+
+  private getMoveProfile(type: string): {
+    antMs: number; moveMs: number; landMs: number;
+    liftPx: number; noBounce: boolean; noAnticipation: boolean;
+  } {
+    if (["phoenix","dragon","djinni"].includes(type))
+      return { antMs:0,  moveMs:140, landMs:40,  liftPx:5, noBounce:true,  noAnticipation:true  };
+    if (["golem","troll"].includes(type))
+      return { antMs:50, moveMs:120, landMs:50,  liftPx:4, noBounce:false, noAnticipation:false };
+    if (["unicorn","goblin"].includes(type))
+      return { antMs:35, moveMs:90,  landMs:35,  liftPx:8, noBounce:false, noAnticipation:false };
+    return   { antMs:45, moveMs:110, landMs:45,  liftPx:8, noBounce:false, noAnticipation:false };
+  }
+
+  private animateMove(pc: PieceContainer, piece: BoardPiece, cx: number, cy: number) {
+    const { container, label, shadow, hoverTween } = pc;
+
+    // Skip: newly placed piece, already at destination
+    if (Math.abs(container.x - cx) < 1 && Math.abs(container.y - cy) < 1) return;
+
+    const p = this.getMoveProfile(piece.type);
+
+    // Kill in-flight tweens so successive moves never stack
+    this.tweens.killTweensOf(container);
+    this.tweens.killTweensOf(label);
+    this.tweens.killTweensOf(shadow);
+    if (hoverTween) hoverTween.pause();
+
+    const startX = container.x, startY = container.y;
+    const dx = cx - startX, dy = cy - startY;
+    const angle = Math.atan2(dy, dx);
+
+    // Directional stretch: elongate along movement axis, compress perpendicular
+    const hW = Math.abs(Math.cos(angle));
+    const stretchX = 1 + 0.055 * hW        - 0.03 * (1 - hW);
+    const stretchY = 1 + 0.055 * (1 - hW)  - 0.03 * hW;
+
+    // Shadow fades while piece is "airborne", restores on land
+    this.tweens.add({
+      targets: shadow, alpha: { from: 0.20, to: 0.08 },
+      duration: p.moveMs * 0.6, ease: "Quad.easeOut",
+      yoyo: true, hold: p.moveMs * 0.4,
+    });
+
+    if (p.noAnticipation) {
+      // ── Flying: smooth glide, gentle lift, resume hover ─────────────────
+      container.setRotation(0);
+      this.tweens.add({
+        targets: container, x: cx, y: cy,
+        duration: p.moveMs, ease: "Quad.easeInOut",
+        onComplete: () => {
+          if (hoverTween) hoverTween.resume();
+          this.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: p.landMs });
+        },
+      });
+      this.tweens.add({
+        targets: label, y: `-=${p.liftPx}`,
+        duration: p.moveMs / 2, ease: "Quad.easeOut", yoyo: true,
+      });
+
+    } else {
+      // ── Ground/heavy/fast: anticipation → movement → landing ─────────────
+      const tilt = -Math.sin(angle) * 0.07;   // up to ~4° rotation tilt
+
+      // Phase 1 — Anticipation: micro-step backward + compress
+      const antX = startX - Math.cos(angle) * 6;
+      const antY = startY - Math.sin(angle) * 6;
+      this.tweens.add({
+        targets: container,
+        x: antX, y: antY, scaleX: 0.94, scaleY: 1.04, rotation: -tilt,
+        duration: p.antMs, ease: "Quad.easeIn",
+        onComplete: () => {
+          // Phase 2 — Movement: shoot to destination with directional stretch
+          this.tweens.add({
+            targets: container,
+            x: cx, y: cy, scaleX: stretchX, scaleY: stretchY, rotation: tilt,
+            duration: p.moveMs, ease: "Quad.easeOut",
+            onComplete: () => {
+              // Phase 3 — Landing: overshoot scale pop then settle
+              const halfLand = p.landMs * 0.5;
+              this.tweens.add({
+                targets: container,
+                scaleX: p.noBounce ? 1 : 1.05,
+                scaleY: p.noBounce ? 1 : 1.05,
+                rotation: 0,
+                duration: halfLand, ease: "Quad.easeOut",
+                onComplete: () => {
+                  this.tweens.add({
+                    targets: container, scaleX: 1, scaleY: 1,
+                    duration: halfLand, ease: "Quad.easeIn",
+                  });
+                },
+              });
+            },
+          });
+          // Concurrent label lift (rises then returns during move + first half of land)
+          this.tweens.add({
+            targets: label, y: `-=${p.liftPx}`,
+            duration: p.moveMs * 0.55, ease: "Quad.easeOut", yoyo: true,
+          });
+        },
+      });
+    }
   }
 
   private showTooltip(name: string, x: number, y: number, isLight: boolean) {
