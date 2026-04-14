@@ -35,6 +35,27 @@ export default function GameRoom({ roomId, playerSide, vsAI = false }: Props) {
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
   const aiSide: Side = playerSide === "light" ? "dark" : "light";
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = useCallback(async () => {
+    const joinUrl = `${window.location.origin}/room/${roomId}?side=dark`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Join my Archon game!", url: joinUrl });
+      } else {
+        await navigator.clipboard.writeText(joinUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      // fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(joinUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch { /* ignore */ }
+    }
+  }, [roomId]);
 
   const socket = usePartySocket({
     host: PARTYKIT_HOST,
@@ -111,7 +132,18 @@ export default function GameRoom({ roomId, playerSide, vsAI = false }: Props) {
             <span className="text-[10px] text-gray-500 uppercase tracking-widest">Luminance</span>
             <span className="text-xs text-amber-400 font-mono">{luminanceLabel}</span>
           </div>
-          <div className="text-xs text-gray-500 font-mono">Room {roomId}</div>
+          {!vsAI && (
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 text-xs font-mono text-gray-400 hover:text-indigo-300 transition-colors group"
+              title="Share invite link"
+            >
+              <span className="text-gray-600 group-hover:text-indigo-400 transition-colors">
+                {copied ? "✓" : "⎘"}
+              </span>
+              <span>{copied ? "Copied!" : `Room ${roomId}`}</span>
+            </button>
+          )}
         </div>
 
         <div className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all ${

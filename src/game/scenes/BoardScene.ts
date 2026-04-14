@@ -294,7 +294,15 @@ export class BoardScene extends Phaser.Scene {
     // Skip: newly placed piece, already at destination
     if (Math.abs(container.x - cx) < 1 && Math.abs(container.y - cy) < 1) return;
 
-    const p = this.getMoveProfile(piece.type);
+    const rawP = this.getMoveProfile(piece.type);
+    // Opponent pieces move ~2× slower so the player can clearly read the AI's move
+    const slowFactor = piece.side !== this.playerSide ? 2.0 : 1.0;
+    const p = {
+      ...rawP,
+      antMs:  rawP.antMs  * slowFactor,
+      moveMs: rawP.moveMs * slowFactor,
+      landMs: rawP.landMs * slowFactor,
+    };
 
     // Kill in-flight tweens so successive moves never stack
     this.tweens.killTweensOf(container);
@@ -382,20 +390,23 @@ export class BoardScene extends Phaser.Scene {
   private showTooltip(name: string, x: number, y: number, isLight: boolean) {
     this.hideTooltip();
     const pad = 6;
+    // Flip below the piece when in the top 2 rows to avoid going off-screen
+    const flipBelow = y < TILE_SIZE * 2;
     const text = this.add.text(0, 0, name, {
       fontSize: "11px",
       fontFamily: "Inter, system-ui, sans-serif",
       color: "#f9fafb",
       fontStyle: "bold",
-    }).setOrigin(0.5, 1);
+    }).setOrigin(0.5, flipBelow ? 0 : 1);
     const w = text.width + pad * 2;
     const h = text.height + pad;
     const bg = this.add.graphics();
     bg.fillStyle(isLight ? 0x1e3a5f : 0x3b0a1a, 0.92);
-    bg.fillRoundedRect(-w / 2, -h, w, h, 4);
+    bg.fillRoundedRect(-w / 2, flipBelow ? 0 : -h, w, h, 4);
     bg.lineStyle(1, isLight ? LIGHT_DOT : DARK_DOT, 0.7);
-    bg.strokeRoundedRect(-w / 2, -h, w, h, 4);
-    this.tooltip = this.add.container(x, y - TILE_SIZE * 0.55, [bg, text]);
+    bg.strokeRoundedRect(-w / 2, flipBelow ? 0 : -h, w, h, 4);
+    const tipY = flipBelow ? y + TILE_SIZE * 0.65 : y - TILE_SIZE * 0.55;
+    this.tooltip = this.add.container(x, tipY, [bg, text]);
     this.tooltip.setDepth(200);
   }
 
@@ -488,6 +499,9 @@ export class BoardScene extends Phaser.Scene {
     const x = col * TILE_SIZE, y = row * TILE_SIZE;
     const base = this.tileColors[row][col];
     this.drawTile(g, x, y, base, false);
+    // Destroy any previous overlay for this tile to avoid stacking
+    const existing = (g as unknown as Record<string, unknown>)["__hl"] as Phaser.GameObjects.Graphics | undefined;
+    if (existing && existing.active) existing.destroy();
     const overlay = this.add.graphics();
     overlay.fillStyle(color, alpha);
     overlay.fillRoundedRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, 4);
@@ -510,10 +524,13 @@ export class BoardScene extends Phaser.Scene {
 
   private clearSelection() {
     this.selectedPieceId = null;
-    // Remove all overlay highlights
+    // Collect first, then destroy — avoids skipping when list mutates during iteration
+    const toDestroy: Phaser.GameObjects.GameObject[] = [];
     this.children.each((child) => {
-      if (child.name?.startsWith("hl_")) child.destroy();
+      if ((child as Phaser.GameObjects.GameObject).name?.startsWith("hl_"))
+        toDestroy.push(child as Phaser.GameObjects.GameObject);
     });
+    toDestroy.forEach(c => c.destroy());
     this.validMoves.clear();
     this.attackMoves.clear();
   }

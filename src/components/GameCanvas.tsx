@@ -100,11 +100,13 @@ export default function GameCanvas({ gameState, playerSide, onMove, onCombatResu
     }
   }, [gameState.phase, gameState.combat, playerSide, onCombatResult]);
 
+  const inCombat = gameState.phase === "combat";
+
   return (
     <div
       ref={containerRef}
       className="rounded-xl overflow-hidden ring-2 ring-indigo-500/40 shadow-[0_0_40px_rgba(99,102,241,0.25)] w-full"
-      style={{ maxWidth: 9 * 64, aspectRatio: "1 / 1" }}
+      style={{ maxWidth: 9 * 64, aspectRatio: inCombat ? "8 / 5" : "1 / 1" }}
     />
   );
 }
