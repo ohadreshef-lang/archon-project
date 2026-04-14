@@ -4,10 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+
 export function HomeClient({ roomId }: { roomId: string }) {
-  const [joinOpen, setJoinOpen]   = useState(false);
-  const [code, setCode]           = useState("");
-  const [showHowTo, setShowHowTo] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [code, setCode]         = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const router   = useRouter();
 
@@ -128,69 +128,15 @@ export function HomeClient({ roomId }: { roomId: string }) {
         )}
 
         {/* 4 ─ How to Play (ghost / smallest) */}
-        <button
-          onClick={() => setShowHowTo(true)}
+        <Link
+          href="/how-to-play"
           className="w-full h-10 flex items-center justify-center
             text-gray-500 hover:text-gray-300 text-sm font-medium
             transition-colors mt-1"
         >
           How to Play
-        </button>
+        </Link>
       </div>
-
-      {/* ── How to Play overlay ─────────────────────────────────────────────── */}
-      {showHowTo && (
-        /* Clicking the backdrop closes the modal */
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-5"
-          onClick={() => setShowHowTo(false)}
-        >
-          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
-
-          <div
-            className="relative w-full max-w-sm bg-gray-950 border border-white/10 rounded-2xl p-6"
-            onClick={e => e.stopPropagation()}
-          >
-            <h2 className="text-white font-bold text-xl tracking-wide mb-6">How to Play</h2>
-
-            <ul className="space-y-5">
-              {[
-                {
-                  n: "01",
-                  title: "Move",
-                  desc: "Left joystick on mobile · WASD or arrow keys on desktop",
-                },
-                {
-                  n: "02",
-                  title: "Aim & Fire",
-                  desc: "Drag right side and release on mobile · mouse aim and click on desktop",
-                },
-                {
-                  n: "03",
-                  title: "Win",
-                  desc: "Defeat the enemy in arena battles — destroy all their pieces",
-                },
-              ].map(({ n, title, desc }) => (
-                <li key={n} className="flex gap-4">
-                  <span className="text-amber-400 font-bold text-sm w-5 shrink-0 pt-0.5">{n}</span>
-                  <div>
-                    <div className="text-white font-semibold text-sm">{title}</div>
-                    <div className="text-gray-500 text-xs mt-0.5 leading-relaxed">{desc}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <button
-              onClick={() => setShowHowTo(false)}
-              className="w-full mt-7 h-11 rounded-xl bg-white/8 hover:bg-white/[14%]
-                text-white font-semibold text-sm transition-colors border border-white/8"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
